@@ -1,4 +1,4 @@
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
 //Definiendo la estructura y validaciones de los documentos de almacenamiento
 const almacenamientoSchema = new mongoose.Schema({
@@ -73,4 +73,6 @@ const usuarioSchema = new mongoose.Schema({
 
 usuarioSchema.index({ correo: 1}, { unique: true})//'unique: true' indica que el campo correo debe ser unico
 
-module.exports = mongoose.model('Usuario', usuarioSchema)
+const Usuario = mongoose.model('Usuario', usuarioSchema)
+
+export default Usuario;

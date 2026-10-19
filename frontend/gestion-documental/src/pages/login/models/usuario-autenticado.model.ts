@@ -3,4 +3,5 @@ export interface UsuarioAutenticado{
     nombres: string;
     apellidos: string;
     correo: string;
+    rol: string;
 }

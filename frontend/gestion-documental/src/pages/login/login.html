@@ -1,1 +1,61 @@
-<p>login works!</p>
+<main class="login-page">
+  <section class="login-card">
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M5 3.75h9l5 5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3.75Z" stroke="currentColor" stroke-width="1.6"
+            stroke-linejoin="round" />
+          <path d="M14 4v5h5M8 13h8M8 17h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+      </div>
+      <span>GESTIÓN DOCUMENTAL</span>
+    </div>
+    <header class="login-header">
+      <p class="eyebrow">BIENVENIDO</p>
+      <h1>Iniciar sesión</h1>
+    </header>
+    <form [formGroup]="formulario" (ngSubmit)="enviarFormulario()" novalidate>
+      <div class="field">
+        <label for="correo">Correo electrónico</label>
+
+        <input id="correo" type="email" formControlName="correo" placeholder="nombre@ejemplo.com"
+          autocomplete="username"
+          [class.invalid]="formulario.controls.correo.touched && formulario.controls.correo.invalid" />
+        @if (formulario.controls.correo.touched && formulario.controls.correo.hasError('required')) {
+        <small class="field-error">El correo electrónico es obligatorio.</small>
+        }
+        @if (formulario.controls.correo.touched && formulario.controls.correo.hasError('email')) {
+        <small class="field-error">Ingresa un correo electrónico válido.</small>
+        }
+      </div>
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <div class="password-wrapper">
+          <input id="password" [type]="mostrarPassword ? 'text' : 'password'" formControlName="password"
+            placeholder="Ingresa tu contraseña" autocomplete="current-password"
+            [class.invalid]="formulario.controls.password.touched && formulario.controls.password.invalid" />
+          <button type="button" class="password-toggle" (click)="mostrarPassword = !mostrarPassword"
+            [attr.aria-label]="mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+            {{ mostrarPassword ? 'Ocultar' : 'Mostrar' }}
+          </button>
+        </div>
+        @if (formulario.controls.password.touched && formulario.controls.password.hasError('required')) {
+        <small class="field-error">La contraseña es obligatoria.</small>
+        }
+      </div>
+      @if (mensajeError) {
+      <div class="alert-error" role="alert">{{ mensajeError }}</div>
+      }
+      <button class="submit-button" type="submit" [disabled]="cargando">
+        @if (cargando) {
+        <span class="spinner" aria-hidden="true"></span>
+        Verificando...
+        } @else {
+        Iniciar sesión
+        <span aria-hidden="true">→</span>
+        }
+      </button>
+    </form>
+  </section>
+  <p class="page-footer">Sistema de Gestión Documental</p>
+</main>

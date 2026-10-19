@@ -1,0 +1,119 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background: #f5f7fb;
+}
+
+.pagina {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 24px;
+  color: #202938;
+}
+
+.encabezado,
+.titulo-lista {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.etiqueta {
+  color: #5268a5;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+h1 {
+  margin: 8px 0;
+  font-size: 30px;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 19px;
+}
+
+.descripcion,
+.vacio,
+.titulo-lista span {
+  color: #667085;
+}
+
+.panel {
+  margin-top: 24px;
+  padding: 24px;
+  background: white;
+  border: 1px solid #e5e9f2;
+  border-radius: 14px;
+}
+
+button {
+  padding: 11px 16px;
+  color: white;
+  background: #344e91;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tabla-contenedor {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th,
+td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #e8ebf2;
+  white-space: nowrap;
+}
+
+th {
+  color: #667085;
+  background: #f8f9fc;
+  font-size: 13px;
+}
+
+td {
+  font-size: 14px;
+}
+
+.etiqueta-rol {
+  display: inline-block;
+  padding: 4px 9px;
+  color: #344e91;
+  background: #eef2ff;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mensaje {
+  margin-top: 18px;
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+
+.error {
+  color: #a12626;
+  background: #fff0f0;
+}
+
+@media (max-width: 600px) {
+  .pagina {
+    padding: 24px 14px;
+  }
+
+  .encabezado {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

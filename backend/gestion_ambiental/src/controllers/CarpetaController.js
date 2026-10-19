@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const Carpeta = require('../models/Carpeta');
+import mongoose from 'mongoose';
+import Carpeta from '../models/Carpeta.js';
 
 const esObjectIdValido = (id) => typeof id === 'string' && mongoose.isValidObjectId(id)
 
@@ -341,7 +341,7 @@ const eliminarCarpeta = async (req, res) => {
     }
 }
 
-module.exports = {
+export {
     crearCarpeta,
     listarCarpetas,
     obtenerCarpeta,

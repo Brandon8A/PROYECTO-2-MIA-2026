@@ -1,20 +1,17 @@
+import express from 'express';
+import { verificarToken } from '../middlewares/AuthMiddleware.js';
 
-const express = require('express');
-
-const { verificarToken } = require('../middlewares/AuthMiddleware');
-
-const {
+import {
   crearCarpeta,
   listarCarpetas,
   obtenerCarpeta,
   actualizarCarpeta,
   eliminarCarpeta
-} = require('../controllers/CarpetaController');
+} from '../controllers/CarpetaController.js';
 
 const router = express.Router();
 
-// Todas las rutas requieren autenticación
-//Con esto todas las rutas de este archivo quedan protegidas
+// Todas las rutas requieren autenticación.
 router.use(verificarToken);
 
 router.post('/', crearCarpeta);
@@ -23,4 +20,4 @@ router.get('/:id', obtenerCarpeta);
 router.put('/:id', actualizarCarpeta);
 router.delete('/:id', eliminarCarpeta);
 
-module.exports = router;
+export default router;

@@ -1,0 +1,59 @@
+<main class="pagina">
+  <header class="encabezado">
+    <div>
+      <p class="etiqueta">PANEL ADMINISTRATIVO</p>
+      <h1>Administración de usuarios</h1>
+      <p class="descripcion">
+        Consulta las cuentas registradas en el sistema.
+      </p>
+    </div>
+
+    <button type="button" (click)="cargarUsuarios()">
+      Actualizar
+    </button>
+  </header>
+
+  @if (mensajeError) {
+  <p class="mensaje error" role="alert">{{ mensajeError }}</p>
+  }
+
+  <section class="panel">
+    <div class="titulo-lista">
+      <h2>Usuarios registrados</h2>
+      <span>{{ usuarios.length }} usuarios</span>
+    </div>
+
+    @if (cargando) {
+    <p>Cargando usuarios...</p>
+    } @else if (usuarios.length === 0 && !mensajeError) {
+    <p class="vacio">No hay usuarios para mostrar.</p>
+    } @else {
+    <div class="tabla-contenedor">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre completo</th>
+            <th>Correo</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Fecha de creación</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (usuario of usuarios; track usuario._id) {
+          <tr>
+            <td>{{ usuario.nombres }} {{ usuario.apellidos }}</td>
+            <td>{{ usuario.correo }}</td>
+            <td>
+              <span class="etiqueta-rol">{{ usuario.rol }}</span>
+            </td>
+            <td>{{ usuario.estado }}</td>
+            <td>{{ usuario.fechaCreacion | date:'mediumDate' }}</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </section>
+</main>

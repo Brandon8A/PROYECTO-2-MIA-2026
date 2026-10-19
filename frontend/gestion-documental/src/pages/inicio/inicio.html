@@ -1,0 +1,305 @@
+<div class="gestor">
+
+  <header class="barra-superior">
+    <div class="marca">
+      <span class="material-symbols-outlined logo-icono">folder_copy</span>
+      <span class="nombre-sistema">Gestión Documental</span>
+    </div>
+
+    <div class="buscador">
+      <span class="material-symbols-outlined">search</span>
+      <input type="search" placeholder="Buscar carpetas y archivos..." aria-label="Buscar carpetas y archivos"
+        [value]="busqueda" (input)="busqueda = $any($event.target).value" />
+      <kbd>Buscar</kbd>
+    </div>
+
+    <button class="btn-cerrar-sesion" type="button" (click)="cerrarSesion()">
+      <span class="material-symbols-outlined">logout</span>
+      <span>Cerrar sesión</span>
+    </button>
+  </header>
+
+  <div class="layout-principal">
+
+    <!-- Barra lateral -->
+    <aside class="barra-lateral">
+
+      <nav class="navegacion" aria-label="Navegación principal">
+
+        <button type="button" class="enlace-navegacion" [class.activo]="vistaActual === 'mis-carpetas'"
+          (click)="irARaiz()">
+          <span class="material-symbols-outlined">folder_open</span>
+          <span>Mis carpetas</span>
+        </button>
+
+        <button type="button" class="enlace-navegacion" [class.activo]="vistaActual === 'compartidos'"
+          (click)="irACompartidos()">
+          <span class="material-symbols-outlined">group</span>
+          <span>Compartido conmigo</span>
+        </button>
+
+        <button type="button" class="enlace-navegacion" [class.activo]="vistaActual === 'papelera'"
+          (click)="irAPapelera()">
+          <span class="material-symbols-outlined">delete_outline</span>
+          <span>Papelera</span>
+        </button>
+
+      </nav>
+
+
+      <div class="separador-lateral"></div>
+
+      <!-- Almacenamiento disponible -->
+      <section class="almacenamiento">
+        <div class="titulo-almacenamiento">
+          <span class="material-symbols-outlined">cloud</span>
+          <span>Almacenamiento</span>
+        </div>
+
+        <div class="barra-almacenamiento">
+          <div class="progreso-almacenamiento" [style.width.%]="porcentajeUtilizado"></div>
+        </div>
+
+        <p class="espacio-disponible">
+          <strong>{{ espacioDisponibleTexto }}</strong>
+          <span>disponibles</span>
+        </p>
+
+        <p class="detalle-almacenamiento">
+          {{ espacioUtilizadoTexto }} de {{ capacidadTexto }} utilizados
+        </p>
+      </section>
+    </aside>
+
+    <!-- Área de trabajo -->
+    <main class="area-archivos">
+
+      <section class="encabezado-contenido">
+        <div class="titulo-seccion">
+          <span class="subtitulo-seccion">ESPACIO DE TRABAJO</span>
+
+          <h1>
+            {{ carpetaActual ? carpetaActual.nombre : 'Mis carpetas' }}
+          </h1>
+
+          <p>
+            {{
+            carpetaActual
+            ? 'Consulta y organiza el contenido de esta carpeta.'
+            : 'Organiza tus carpetas y documentos.'
+            }}
+          </p>
+        </div>
+
+        <div class="acciones-contenido">
+          <div class="contenedor-menu-nuevo">
+            <button class="btn-nuevo" type="button" [attr.aria-expanded]="menuNuevoAbierto"
+              (click)="alternarMenuNuevo()">
+              <span class="material-symbols-outlined">add</span>
+              <span>Nuevo</span>
+              <span class="material-symbols-outlined icono-desplegable">
+                expand_more
+              </span>
+            </button>
+
+            @if (menuNuevoAbierto) {
+            <div class="menu-nuevo" role="menu">
+              <button type="button" role="menuitem" (click)="crearCarpeta()">
+                <span class="material-symbols-outlined icono-carpeta">
+                  create_new_folder
+                </span>
+                <span>
+                  <strong>Nueva carpeta</strong>
+                  <small>Organiza tus documentos</small>
+                </span>
+              </button>
+
+              <div class="separador-menu"></div>
+
+              <button type="button" role="menuitem" (click)="crearArchivo('md')">
+                <span class="material-symbols-outlined icono-markdown">
+                  description
+                </span>
+                <span>
+                  <strong>Documento Markdown</strong>
+                  <small>Archivo .md</small>
+                </span>
+              </button>
+
+              <button type="button" role="menuitem" (click)="crearArchivo('txt')">
+                <span class="material-symbols-outlined icono-texto">
+                  article
+                </span>
+                <span>
+                  <strong>Archivo de texto</strong>
+                  <small>Archivo .txt</small>
+                </span>
+              </button>
+            </div>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Ruta de navegación -->
+      <nav class="ruta-carpetas" aria-label="Ruta de carpetas">
+        <button class="ruta-inicio" type="button" [class.ruta-seleccionada]="!carpetaActual" (click)="irARaiz()">
+          <span class="material-symbols-outlined">home</span>
+          <span>Mi unidad</span>
+        </button>
+
+        @for (carpeta of rutaCarpetas; track carpeta.id) {
+        <span class="material-symbols-outlined separador-ruta">
+          chevron_right
+        </span>
+
+        <button type="button" class="elemento-ruta" [class.ruta-seleccionada]="carpeta.id === carpetaActualId"
+          (click)="navegarA(carpeta)">
+          {{ carpeta.nombre }}
+        </button>
+        }
+      </nav>
+
+      <!-- Elementos -->
+      <section class="seccion-archivos">
+        <div class="encabezado-archivos">
+          <div>
+            <h2>Contenido</h2>
+            <p>
+              {{ elementosVisibles.length }}
+              {{ elementosVisibles.length === 1 ? 'elemento' : 'elementos' }}
+            </p>
+          </div>
+
+          <span class="material-symbols-outlined icono-vista">grid_view</span>
+        </div>
+
+        @if (elementosVisibles.length > 0) {
+        <div class="cuadricula-carpetas">
+          @for (elemento of elementosVisibles; track elemento.id) {
+
+          <article class="tarjeta-elemento" [class.tarjeta-carpeta]="elemento.tipo === 'carpeta'"
+            [class.tarjeta-archivo]="elemento.tipo === 'archivo'">
+            <!-- Contenido de la tarjeta -->
+            <button type="button" class="contenido-elemento" [attr.aria-label]="
+                    elemento.tipo === 'carpeta'
+                      ? 'Abrir carpeta ' + elemento.nombre
+                      : elemento.nombre + '.' + elemento.extension
+                  " [class.contenido-clicable]="elemento.tipo === 'carpeta'" [disabled]="elemento.tipo === 'archivo'"
+              (click)="abrirCarpeta(elemento)">
+              <span class="icono-elemento">
+                @if (elemento.tipo === 'carpeta') {
+                <span class="material-symbols-outlined">folder</span>
+                } @else if (elemento.extension === 'md') {
+                <span class="material-symbols-outlined icono-md">
+                  description
+                </span>
+                } @else {
+                <span class="material-symbols-outlined icono-txt">
+                  article
+                </span>
+                }
+              </span>
+
+              <span class="informacion-elemento">
+                <span class="nombre-elemento">
+                  {{ elemento.nombre }}@if (elemento.tipo === 'archivo') {
+                  .{{ elemento.extension }}
+                  }
+                </span>
+
+                <span class="tipo-elemento">
+                  {{ elemento.tipo === 'carpeta'
+                  ? 'Carpeta'
+                  : 'Documento ' + elemento.extension?.toUpperCase() }}
+                </span>
+              </span>
+            </button>
+
+            <!-- Botón de tres puntos -->
+            <div class="contenedor-opciones">
+              <button type="button" class="btn-opciones" [class.opciones-activas]="menuElementoId === elemento.id"
+                [attr.aria-label]="'Opciones de ' + nombreCompleto(elemento)"
+                [attr.aria-expanded]="menuElementoId === elemento.id"
+                (click)="$event.stopPropagation(); alternarMenuElemento(elemento.id)">
+                <span class="material-symbols-outlined">more_vert</span>
+              </button>
+
+              @if (menuElementoId === elemento.id) {
+              <div class="menu-opciones" role="menu" (click)="$event.stopPropagation()">
+                <button type="button" role="menuitem" (click)="descargarElemento(elemento)">
+                  <span class="material-symbols-outlined">download</span>
+                  <span>Descargar</span>
+                </button>
+
+                <button type="button" role="menuitem" (click)="cambiarNombre(elemento)">
+                  <span class="material-symbols-outlined">edit</span>
+                  <span>Cambiar nombre</span>
+                </button>
+
+                <button type="button" role="menuitem" (click)="compartirElemento(elemento)">
+                  <span class="material-symbols-outlined">person_add</span>
+                  <span>Compartir</span>
+                </button>
+
+                <button type="button" role="menuitem" (click)="moverElemento(elemento)">
+                  <span class="material-symbols-outlined">drive_file_move</span>
+                  <span>Mover</span>
+                </button>
+
+                <button type="button" role="menuitem" (click)="verInformacion(elemento)">
+                  <span class="material-symbols-outlined">info</span>
+                  <span>Información del archivo</span>
+                </button>
+
+                <div class="separador-menu"></div>
+
+                <button type="button" class="opcion-papelera" role="menuitem" (click)="moverAPapelera(elemento)">
+                  <span class="material-symbols-outlined">
+                    delete_outline
+                  </span>
+                  <span>Mover a papelera</span>
+                </button>
+              </div>
+              }
+            </div>
+          </article>
+
+          }
+        </div>
+        } @else {
+        <div class="estado-vacio">
+          <div class="ilustracion-vacia">
+            <span class="material-symbols-outlined">
+              {{ busqueda.trim() ? 'search_off' : 'folder_open' }}
+            </span>
+          </div>
+
+          <h3>
+            {{
+            busqueda.trim()
+            ? 'No se encontraron resultados'
+            : 'Esta carpeta está vacía'
+            }}
+          </h3>
+
+          <p>
+            {{
+            busqueda.trim()
+            ? 'Prueba con otro nombre de carpeta o archivo.'
+            : 'Crea una carpeta o un documento para comenzar.'
+            }}
+          </p>
+
+          @if (!busqueda.trim()) {
+          <button type="button" class="btn-nuevo btn-vacio" (click)="alternarMenuNuevo()">
+            <span class="material-symbols-outlined">add</span>
+            Crear elemento
+          </button>
+          }
+        </div>
+        }
+      </section>
+    </main>
+  </div>
+</div>

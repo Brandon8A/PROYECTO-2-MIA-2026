@@ -1,0 +1,73 @@
+<main class="pagina">
+  <header class="encabezado">
+    <div>
+      <p class="etiqueta">GESTIÓN DOCUMENTAL</p>
+      <h1>Mis carpetas</h1>
+      <p class="descripcion">
+        Organiza tus documentos mediante carpetas.
+      </p>
+    </div>
+
+    <button type="button" class="boton-secundario" (click)="cargarCarpetas()">
+      Actualizar
+    </button>
+  </header>
+
+  <section class="panel">
+    <h2>Nueva carpeta</h2>
+
+    <form (ngSubmit)="crearCarpeta()">
+      <label for="nombreCarpeta">Nombre de la carpeta</label>
+
+      <div class="formulario">
+        <input id="nombreCarpeta" name="nombreCarpeta" type="text" [(ngModel)]="nombreNuevaCarpeta"
+          placeholder="Ej. Documentos académicos" maxlength="120" required />
+
+        <button type="submit" [disabled]="guardando">
+          {{ guardando ? 'Creando...' : 'Crear carpeta' }}
+        </button>
+      </div>
+    </form>
+  </section>
+
+  @if (mensajeError) {
+  <p class="mensaje error" role="alert">{{ mensajeError }}</p>
+  }
+
+  @if (mensajeExito) {
+  <p class="mensaje exito" role="status">{{ mensajeExito }}</p>
+  }
+
+  <section class="panel">
+    <div class="titulo-lista">
+      <h2>Carpetas raíz</h2>
+      <span>{{ carpetas.length }} carpetas</span>
+    </div>
+
+    @if (cargando) {
+    <p>Cargando carpetas...</p>
+    } @else if (carpetas.length === 0) {
+    <p class="vacio">
+      Todavía no tienes carpetas. Crea la primera utilizando el formulario.
+    </p>
+    } @else {
+    <div class="lista-carpetas">
+      @for (carpeta of carpetas; track carpeta._id) {
+      <article class="carpeta">
+        <div class="icono-carpeta">CARPETA</div>
+
+        <div class="datos-carpeta">
+          <h3>{{ carpeta.nombre }}</h3>
+          <p>
+            Modificada:
+            {{ carpeta.fechaModificacion | date:'mediumDate' }}
+          </p>
+        </div>
+
+        <span class="estado">{{ carpeta.estado }}</span>
+      </article>
+      }
+    </div>
+    }
+  </section>
+</main>

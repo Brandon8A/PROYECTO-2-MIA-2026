@@ -1,5 +1,4 @@
-
-const mongoose = require('mongoose');
+import mongoose from 'mongoose'
 
 const carpetaSchema = new mongoose.Schema(
     {
@@ -60,4 +59,6 @@ carpetaSchema.index({
     estado: 1
 });
 
-module.exports = mongoose.model('Carpeta', carpetaSchema);
+const Carpeta = mongoose.model('Carpeta', carpetaSchema);
+
+export default Carpeta;

@@ -1,5 +1,4 @@
-
-const mongoose = require('mongoose');
+import mongoose from 'mongoose'
 
 const conectarDB = async () => {
     try {
@@ -20,4 +19,4 @@ const conectarDB = async () => {
     }
 };
 
-module.exports = conectarDB;
+export default conectarDB;

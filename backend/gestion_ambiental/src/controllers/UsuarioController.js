@@ -1,7 +1,6 @@
-
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const Usuario = require('../models/Usuario');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import Usuario from '../models/Usuario.js';
 
 const CAMPOS_EDITABLES = [
     'nombres',
@@ -241,10 +240,10 @@ const eliminarUsuario = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     crearUsuario,
     listarUsuarios,
     obtenerUsuario,
     actualizarUsuario,
     eliminarUsuario
-};
+}
