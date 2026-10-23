@@ -138,8 +138,7 @@ function fechaDiasAtras(dias) {
 }
 
 async function crearUsuarios() {
-    const password =
-        process.env.SEED_DEMO_PASSWORD || 'Demo1234!'
+    const password = process.env.SEED_DEMO_PASSWORD || 'Demo1234!'
 
     const passwordHash = await bcrypt.hash(password, 12)
     const usuarios = []

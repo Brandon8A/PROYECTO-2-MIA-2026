@@ -1,21 +1,12 @@
-
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, inject, OnInit } from '@angular/core';
+import { Router } from '@angular/router'
+import { forkJoin } from 'rxjs';
+
 import { AuthService } from '../../services/auth';
-
-type TipoElemento = 'carpeta' | 'archivo';
-type ExtensionArchivo = 'md' | 'txt';
-
-interface Elemento {
-  id: string;
-  nombre: string;
-  tipo: TipoElemento;
-  extension?: ExtensionArchivo;
-  carpetaPadreId: string | null;
-  fechaModificacion: Date;
-  enPapelera?: boolean;
-}
+import { CarpetasService } from '../../services/carpetas';
+import { ArchivosService } from '../../services/archivos-service';
+import { Elemento, ExtensionArchivo } from './models/elemento.model';
 
 @Component({
   selector: 'app-inicio',
@@ -24,12 +15,13 @@ interface Elemento {
   templateUrl: './inicio.html',
   styleUrl: './inicio.css'
 })
-export class Inicio {
-
-
+export class Inicio implements OnInit {
 
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+
+  private readonly carpetasService = inject(CarpetasService)
+  private readonly archivosService = inject(ArchivosService)
 
   busqueda = '';
   menuNuevoAbierto = false;
@@ -41,40 +33,105 @@ export class Inicio {
   capacidadBytes = 5 * 1024 ** 3;
   utilizadoBytes = 1.2 * 1024 ** 3;
 
-  elementos: Elemento[] = [
-    {
-      id: 'carpeta-1',
-      nombre: 'Documentos personales',
-      tipo: 'carpeta',
-      carpetaPadreId: null,
-      fechaModificacion: new Date()
-    },
-    {
-      id: 'carpeta-2',
-      nombre: 'Proyectos',
-      tipo: 'carpeta',
-      carpetaPadreId: null,
-      fechaModificacion: new Date()
-    },
-    {
-      id: 'archivo-1',
-      nombre: 'Bienvenido',
-      tipo: 'archivo',
-      extension: 'md',
-      carpetaPadreId: null,
-      fechaModificacion: new Date()
-    },
-    {
-      id: 'archivo-2',
-      nombre: 'Notas',
-      tipo: 'archivo',
-      extension: 'txt',
-      carpetaPadreId: 'carpeta-1',
-      fechaModificacion: new Date()
+  elementos: Elemento[] = []
+
+  cargando = false
+  errorCarga = ''
+
+  ngOnInit(): void {
+    this.cargarElementos()
+  }
+
+
+  cargarElementos(): void {
+    this.cargando = true
+    this.errorCarga = ''
+
+    // Si estamos en la papelera, consultar las carpetas
+    // cuyo estado en el backend es "papelera".
+    if (this.vistaActual === 'papelera') {
+      this.carpetasService.listarPapelera().subscribe({
+        next: carpetas => {
+          const carpetasPapelera: Elemento[] = carpetas.map(carpeta => ({
+            id: carpeta._id,
+            nombre: carpeta.nombre,
+            tipo: 'carpeta',
+            carpetaPadreId: carpeta.carpetaPadreId,
+            fechaModificacion: new Date(carpeta.fechaModificacion),
+            enPapelera: true
+          }))
+
+          const idsPapelera = new Set(carpetasPapelera.map(carpeta => carpeta.id))
+
+          /*
+          Actualizar las carpetas recuperadas del backend
+          y eliminar las versiones anteriores de la papelera.
+          */
+          this.elementos = [
+            ...this.elementos.filter(elemento =>
+              !idsPapelera.has(elemento.id) && !(elemento.tipo === 'carpeta' && elemento.enPapelera)),
+            ...carpetasPapelera
+          ]
+          this.cargando = false;
+        },
+        error: error => {
+          console.error('Error al cargar la papelera:', error)
+          this.errorCarga = 'No se pudieron cargar las carpetas de la papelera.'
+          this.cargando = false
+        }
+      })
+      return
     }
-  ];
 
+    // Cargar las carpetas y los archivos de la ubicación actual.
+    forkJoin({
+      carpetas: this.carpetasService.listar(this.carpetaActualId),
+      archivos: this.archivosService.listar(this.carpetaActualId)
+    }).subscribe({
+      next: ({ carpetas, archivos }) => {
+        const carpetasMapeadas: Elemento[] = carpetas.map(carpeta => ({
+          id: carpeta._id,
+          nombre: carpeta.nombre,
+          tipo: 'carpeta',
+          carpetaPadreId: carpeta.carpetaPadreId,
+          fechaModificacion: new Date(carpeta.fechaModificacion),
+          enPapelera: false
+        }))
 
+        const archivosMapeados: Elemento[] = archivos.map(archivo => ({
+          id: archivo._id,
+          nombre: archivo.nombre,
+          tipo: 'archivo',
+          extension: archivo.extension.replace('.', '') as ExtensionArchivo,
+          carpetaPadreId: archivo.carpetaId,
+          fechaModificacion: new Date(archivo.fechaModificacion),
+          enPapelera: false
+        }));
+
+        // Identificar los elementos que se recibieron del backend.
+        const idsActuales = new Set([
+          ...carpetasMapeadas.map(elemento => elemento.id),
+          ...archivosMapeados.map(elemento => elemento.id)
+        ])
+
+        // Conservar en memoria los elementos de otras ubicaciones
+        this.elementos = [
+          ...this.elementos.filter(elemento =>
+            !idsActuales.has(elemento.id) &&
+            elemento.carpetaPadreId !== this.carpetaActualId
+          ),
+          ...carpetasMapeadas,
+          ...archivosMapeados
+        ]
+        this.cargando = false
+      },
+      error: error => {
+        console.error('Error al cargar los elementos:', error)
+        this.errorCarga = 'No se pudieron cargar las carpetas y los archivos.'
+        this.cargando = false
+      }
+    })
+  }
 
   get carpetaActual(): Elemento | undefined {
     return this.elementos.find(
@@ -122,16 +179,9 @@ export class Inicio {
           return false;
         }
 
-        return (
-          elemento.carpetaPadreId === this.carpetaActualId &&
-          !elemento.enPapelera
-        );
+        return (elemento.carpetaPadreId === this.carpetaActualId && !elemento.enPapelera)
       })
-      .filter(elemento =>
-        this.nombreCompleto(elemento)
-          .toLocaleLowerCase()
-          .includes(termino)
-      )
+      .filter(elemento => this.nombreCompleto(elemento).toLocaleLowerCase().includes(termino))
       .sort((a, b) => {
         if (a.tipo !== b.tipo) {
           return a.tipo === 'carpeta' ? -1 : 1;
@@ -179,14 +229,6 @@ export class Inicio {
   get capacidadTexto(): string {
     return this.formatearBytes(this.capacidadBytes);
   }
-  /*
-    irARaiz(): void {
-      this.carpetaActualId = null;
-      this.busqueda = '';
-      this.menuNuevoAbierto = false;
-      this.menuElementoId = null;
-    }
-      */
 
   abrirCarpeta(elemento: Elemento): void {
     if (elemento.tipo !== 'carpeta' || elemento.enPapelera) {
@@ -197,6 +239,7 @@ export class Inicio {
     this.busqueda = '';
     this.menuNuevoAbierto = false;
     this.menuElementoId = null;
+    this.cargarElementos();
   }
 
   navegarA(carpeta: Elemento | null): void {
@@ -204,6 +247,8 @@ export class Inicio {
     this.busqueda = '';
     this.menuNuevoAbierto = false;
     this.menuElementoId = null;
+
+    this.cargarElementos();
   }
 
   alternarMenuNuevo(): void {
@@ -217,36 +262,42 @@ export class Inicio {
   }
 
   crearCarpeta(): void {
-    this.menuNuevoAbierto = false;
-
+    this.menuNuevoAbierto = false
     const nombre = window.prompt('Nombre de la nueva carpeta:');
-
     if (nombre === null) {
       return;
     }
 
     const nombreLimpio = nombre.trim();
-
     if (!nombreLimpio) {
-      window.alert('El nombre de la carpeta no puede estar vacío.');
-      return;
+      window.alert('El nombre de la carpeta no puede estar vacio.')
+      return
     }
 
     if (this.existeElemento(nombreLimpio)) {
-      window.alert('Ya existe un elemento con ese nombre en esta ubicación.');
-      return;
+      window.alert('Ya existe un elemento con ese nombre en esta ubicación.')
+      return
     }
 
-    this.elementos = [
-      ...this.elementos,
-      {
-        id: this.generarId(),
-        nombre: nombreLimpio,
-        tipo: 'carpeta',
-        carpetaPadreId: this.carpetaActualId,
-        fechaModificacion: new Date()
+    this.carpetasService.crear(nombreLimpio, this.carpetaActualId).subscribe({
+      next: carpeta => {
+        this.elementos = [
+          ...this.elementos,
+          {
+            id: carpeta._id,
+            nombre: carpeta.nombre,
+            tipo: 'carpeta',
+            carpetaPadreId: carpeta.carpetaPadreId,
+            fechaModificacion: new Date(carpeta.fechaModificacion)
+          }
+        ]
+        window.alert('Carpeta creada correctamente.')
+      },
+      error: error => {
+        console.error('Error al crear la carpeta:', error);
+        window.alert(error.error?.mensaje ?? 'No se pudo crear la carpeta.')
       }
-    ];
+    })
   }
 
   crearArchivo(extension: ExtensionArchivo): void {
@@ -285,53 +336,63 @@ export class Inicio {
   }
 
   cambiarNombre(elemento: Elemento): void {
-    this.cerrarMenuElemento();
+    this.cerrarMenuElemento()
 
     const nombreActual = this.nombreCompleto(elemento);
-    const nuevoNombre = window.prompt(
-      'Ingresa el nuevo nombre:',
-      nombreActual
-    );
-
-    if (nuevoNombre === null) {
-      return;
-    }
-
-    let nombreLimpio = nuevoNombre.trim();
+    const nuevoNombre = window.prompt('Ingresa el nuevo nombre:', nombreActual)
+    if (nuevoNombre === null) return;
+    let nombreLimpio = nuevoNombre.trim()
 
     if (!nombreLimpio) {
-      window.alert('El nombre no puede estar vacío.');
-      return;
+      window.alert('El nombre no puede estar vacío.')
+      return
     }
 
     if (elemento.tipo === 'archivo') {
       nombreLimpio = nombreLimpio.replace(/\.(md|txt)$/i, '').trim();
-
-      if (!nombreLimpio) {
-        window.alert('Ingresa un nombre válido para el archivo.');
-        return;
-      }
     }
 
-    const nombreComparacion =
-      elemento.tipo === 'archivo'
-        ? `${nombreLimpio}.${elemento.extension}`
-        : nombreLimpio;
-
-    if (
-      this.existeElemento(nombreComparacion, elemento.id)
-    ) {
-      window.alert('Ya existe un elemento con ese nombre.');
-      return;
+    if (!nombreLimpio) {
+      window.alert('Ingresa un nombre válido.')
+      return
     }
 
+    const nombreComparacion = elemento.tipo === 'archivo'
+      ? `${nombreLimpio}.${elemento.extension}`
+      : nombreLimpio;
+
+    if (this.existeElementoEnCarpeta(nombreComparacion, elemento.carpetaPadreId, elemento.id)) {
+      window.alert('Ya existe un elemento con ese nombre.')
+      return
+    }
+
+    if (elemento.tipo === 'carpeta') {
+      this.carpetasService.actualizar(elemento.id, { nombre: nombreLimpio }).subscribe({
+        next: carpeta => {
+          this.elementos = this.elementos.map(actual =>
+            actual.id === elemento.id
+              ? {
+                ...actual,
+                nombre: carpeta.nombre,
+                fechaModificacion: new Date(carpeta.fechaModificacion)
+              }
+              : actual
+          )
+
+          window.alert('Carpeta renombrada correctamente.')
+        },
+        error: error => {
+          console.error('Error al renombrar carpeta:', error)
+          window.alert(error.error?.mensaje ?? 'No se pudo cambiar el nombre.')
+        }
+      })
+      return
+    }
+
+    // Los archivos se conectarán con su servicio en la siguiente etapa.
     this.elementos = this.elementos.map(actual =>
       actual.id === elemento.id
-        ? {
-          ...actual,
-          nombre: nombreLimpio,
-          fechaModificacion: new Date()
-        }
+        ? { ...actual, nombre: nombreLimpio, fechaModificacion: new Date() }
         : actual
     );
   }
@@ -368,9 +429,7 @@ export class Inicio {
   compartirElemento(elemento: Elemento): void {
     this.cerrarMenuElemento();
 
-    const correo = window.prompt(
-      `Correo del usuario con quien deseas compartir "${elemento.nombre}":`
-    );
+    const correo = window.prompt(`Correo del usuario con quien deseas compartir "${elemento.nombre}":`)
 
     if (correo === null) {
       return;
@@ -384,131 +443,155 @@ export class Inicio {
     window.alert(
       'La interfaz está preparada, pero el uso compartido real requiere ' +
       'conectar esta acción con el endpoint de comparticiones del backend.'
-    );
+    )
   }
 
   moverElemento(elemento: Elemento): void {
-    this.cerrarMenuElemento();
+    this.cerrarMenuElemento()
+
+    if (elemento.tipo !== 'carpeta') {
+      window.alert('El movimiento de archivos se conectará por separado.')
+      return
+    }
 
     const carpetasDestino = this.elementos.filter(carpeta =>
       carpeta.tipo === 'carpeta' &&
       !carpeta.enPapelera &&
       carpeta.id !== elemento.id &&
       !this.esDescendiente(carpeta.id, elemento.id)
-    );
+    )
 
     const instrucciones = [
       'Escribe el ID de la carpeta de destino.',
       'Deja el campo vacío para mover a Mi unidad.',
-      '',
-      ...carpetasDestino.map(
-        carpeta => `${carpeta.nombre} — ID: ${carpeta.id}`
-      )
-    ].join('\n');
+      '', ...carpetasDestino.map(carpeta => `${carpeta.nombre} — ID: ${carpeta.id}`)
+    ].join('\n')
 
-    const idDestinoIngresado = window.prompt(instrucciones, '');
+    const entrada = window.prompt(instrucciones, '')
 
-    if (idDestinoIngresado === null) {
-      return;
-    }
+    if (entrada === null) return
 
-    const idDestino = idDestinoIngresado.trim() || null;
+    const idDestino = entrada.trim() || null
 
     if (idDestino === elemento.carpetaPadreId) {
-      window.alert('El elemento ya se encuentra en esa ubicación.');
-      return;
+      window.alert('La carpeta ya está en esa ubicación.')
+      return
     }
 
     if (idDestino !== null) {
-      const destinoValido = carpetasDestino.some(
-        carpeta => carpeta.id === idDestino
-      );
+      const destino = carpetasDestino.find(c => c.id === idDestino)
 
-      if (!destinoValido) {
-        window.alert('La carpeta de destino no es válida.');
-        return;
+      if (!destino) {
+        window.alert('La carpeta de destino no es válida.')
+        return
       }
     }
 
-    if (this.existeElementoEnCarpeta(
-      this.nombreCompleto(elemento),
-      idDestino,
-      elemento.id
-    )) {
-      window.alert('Ya existe un elemento con ese nombre en el destino.');
-      return;
+    if (this.existeElementoEnCarpeta(elemento.nombre, idDestino, elemento.id)) {
+      window.alert('Ya existe una carpeta con ese nombre en el destino.')
+      return
     }
 
-    this.elementos = this.elementos.map(actual =>
-      actual.id === elemento.id
-        ? {
-          ...actual,
-          carpetaPadreId: idDestino,
-          fechaModificacion: new Date()
-        }
-        : actual
-    );
+    this.carpetasService.actualizar(elemento.id, { carpetaPadreId: idDestino }).subscribe({
+      next: carpeta => {
+        this.elementos = this.elementos.map(actual =>
+          actual.id === elemento.id
+            ? {
+              ...actual, carpetaPadreId: carpeta.carpetaPadreId, fechaModificacion: new Date(carpeta.fechaModificacion)
+            } : actual
+        )
+        this.cargarElementos()
+        window.alert('Carpeta movida correctamente.')
+      },
+      error: error => {
+        console.error('Error al mover carpeta:', error);
+        window.alert(error.error?.mensaje ?? 'No se pudo mover la carpeta.')
+      }
+    })
   }
 
   verInformacion(elemento: Elemento): void {
-    this.cerrarMenuElemento();
+    this.cerrarMenuElemento()
+    if (elemento.tipo !== 'carpeta') {
+      window.alert('La información detallada de archivos se conectará después.');
+      return
+    }
 
-    const detalles = [
-      `Nombre: ${this.nombreCompleto(elemento)}`,
-      `Tipo: ${elemento.tipo === 'carpeta' ? 'Carpeta' : 'Documento'}`,
-      `ID: ${elemento.id}`,
-      `Ubicación: ${elemento.carpetaPadreId
-        ? this.obtenerRutaCarpeta(elemento.carpetaPadreId)
-        : 'Mi unidad'
-      }`,
-      `Última modificación: ${elemento.fechaModificacion.toLocaleString()}`
-    ].join('\n');
+    this.carpetasService.obtenerPorId(elemento.id).subscribe({
+      next: carpeta => {
+        const detalles = [
+          `Nombre: ${carpeta.nombre}`,
+          'Tipo: Carpeta',
+          `ID: ${carpeta._id}`,
+          `Propietario ID: ${carpeta.propietarioId}`,
+          `Ubicación: ${carpeta.carpetaPadreId
+            ? this.obtenerRutaCarpeta(carpeta.carpetaPadreId)
+            : 'Mi unidad'
+          }`,
+          `Estado: ${carpeta.estado}`,
+          `Fecha de creación: ${new Date(carpeta.fechaCreacion).toLocaleString()
+          }`,
+          `Última modificación: ${new Date(carpeta.fechaModificacion).toLocaleString()
+          }`
+        ].join('\n')
 
-    window.alert(detalles);
+        window.alert(detalles)
+      },
+      error: error => {
+        console.error('Error al obtener información:', error)
+        window.alert('No se pudo obtener la información de la carpeta.')
+      }
+    })
   }
 
   moverAPapelera(elemento: Elemento): void {
-    this.cerrarMenuElemento();
+    this.cerrarMenuElemento()
 
-    const confirmado = window.confirm(
-      `¿Deseas mover "${this.nombreCompleto(elemento)}" a la papelera?`
-    );
-
-    if (!confirmado) {
-      return;
+    if (elemento.tipo !== 'carpeta') {
+      window.alert('La operación de papelera para archivos se conectará después.')
+      return
     }
 
-    const ids = new Set<string>([elemento.id]);
+    const confirmado = window.confirm(`¿Deseas mover "${elemento.nombre}" a la papelera?`)
 
-    // Si es una carpeta, incluir todos sus elementos descendientes.
-    if (elemento.tipo === 'carpeta') {
-      let cambio = true;
+    if (!confirmado) return
 
-      while (cambio) {
-        cambio = false;
+    this.carpetasService.enviarAPapelera(elemento.id).subscribe({
+      next: () => {
+        const ids = new Set<string>([elemento.id]);
 
-        for (const actual of this.elementos) {
-          if (
-            actual.carpetaPadreId &&
-            ids.has(actual.carpetaPadreId) &&
-            !ids.has(actual.id)
-          ) {
-            ids.add(actual.id);
-            cambio = true;
+        // Marcar en memoria los descendientes que conocemos.
+        let cambio = true;
+
+        while (cambio) {
+          cambio = false
+
+          for (const actual of this.elementos) {
+            if (actual.carpetaPadreId !== null && ids.has(actual.carpetaPadreId) && !ids.has(actual.id)) {
+              ids.add(actual.id)
+              cambio = true
+            }
           }
         }
+
+        this.elementos = this.elementos.map(actual =>
+          ids.has(actual.id)
+            ? { ...actual, enPapelera: true }
+            : actual
+        );
+
+        if (ids.has(this.carpetaActualId ?? '')) {
+          this.irARaiz()
+        } else {
+          this.cargarElementos()
+        }
+        window.alert('Carpeta enviada a la papelera.')
+      },
+      error: error => {
+        console.error('Error al enviar carpeta a papelera:', error)
+        window.alert(error.error?.mensaje ?? 'No se pudo enviar la carpeta a la papelera.')
       }
-    }
-
-    this.elementos = this.elementos.map(actual =>
-      ids.has(actual.id)
-        ? { ...actual, enPapelera: true }
-        : actual
-    );
-
-    if (ids.has(this.carpetaActualId ?? '')) {
-      this.irARaiz();
-    }
+    })
   }
 
   cerrarSesion(): void {
@@ -519,7 +602,7 @@ export class Inicio {
   nombreCompleto(elemento: Elemento): string {
     return elemento.tipo === 'archivo'
       ? `${elemento.nombre}.${elemento.extension}`
-      : elemento.nombre;
+      : elemento.nombre
   }
 
   formatearBytes(bytes: number): string {
@@ -540,6 +623,49 @@ export class Inicio {
     })} ${unidades[indice]}`;
   }
 
+  restablecerElemento(elemento: Elemento): void {
+    if (elemento.tipo !== 'carpeta') {
+      return
+    }
+    this.carpetasService.restaurar(elemento.id).subscribe({
+      next: (respuesta) => {
+        console.log(respuesta.mensaje)
+        this.menuElementoId = null
+        this.cargarElementos()
+      },
+      error: (error) => {
+        console.error('Error al restaurar la carpeta:', error)
+        alert(error.error?.mensaje ?? 'No se pudo restaurar la carpeta.')
+      }
+    })
+  }
+
+  eliminarDefinitivamente(elemento: Elemento): void {
+    if (elemento.tipo !== 'carpeta') {
+      return
+    }
+
+    const confirmar = window.confirm(
+      `¿Eliminar definitivamente la carpeta "${elemento.nombre}" y todo su contenido? Esta acción no se puede deshacer.`
+    )
+
+    if (!confirmar) {
+      return
+    }
+
+    this.carpetasService.eliminarDefinitivamente(elemento.id).subscribe({
+      next: (respuesta) => {
+        console.log(respuesta.mensaje)
+        this.menuElementoId = null
+        this.cargarElementos()
+      },
+      error: (error) => {
+        console.error('Error al eliminar definitivamente la carpeta:', error)
+        alert(error.error?.mensaje ?? 'No se pudo eliminar definitivamente la carpeta.')
+      }
+    })
+  }
+
   private existeElemento(
     nombre: string,
     excluirId?: string
@@ -551,11 +677,7 @@ export class Inicio {
     );
   }
 
-  private existeElementoEnCarpeta(
-    nombre: string,
-    carpetaId: string | null,
-    excluirId?: string
-  ): boolean {
+  private existeElementoEnCarpeta(nombre: string, carpetaId: string | null, excluirId?: string): boolean {
     const nombreNormalizado = nombre.toLocaleLowerCase();
 
     return this.elementos.some(elemento =>
@@ -563,13 +685,10 @@ export class Inicio {
       !elemento.enPapelera &&
       elemento.carpetaPadreId === carpetaId &&
       this.nombreCompleto(elemento).toLocaleLowerCase() === nombreNormalizado
-    );
+    )
   }
 
-  private esDescendiente(
-    posibleDescendienteId: string,
-    ancestroId: string
-  ): boolean {
+  private esDescendiente(posibleDescendienteId: string, ancestroId: string): boolean {
     let idActual: string | null = posibleDescendienteId;
 
     while (idActual !== null) {
@@ -584,10 +703,8 @@ export class Inicio {
       if (actual.carpetaPadreId === ancestroId) {
         return true;
       }
-
       idActual = actual.carpetaPadreId;
     }
-
     return false;
   }
 
@@ -603,11 +720,9 @@ export class Inicio {
       if (!carpeta) {
         break;
       }
-
       partes.unshift(carpeta.nombre);
       idActual = carpeta.carpetaPadreId;
     }
-
     return `Mi unidad / ${partes.join(' / ')}`;
   }
 
@@ -675,6 +790,7 @@ export class Inicio {
     this.busqueda = '';
     this.menuElementoId = null;
     this.menuNuevoAbierto = false;
+    this.cargarElementos();
   }
 
   irARaiz(): void {

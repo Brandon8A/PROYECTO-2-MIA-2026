@@ -1,4 +1,3 @@
-
 :host {
   display: block;
   width: 100%;
@@ -35,9 +34,7 @@ input:focus-visible {
   background: #f7f9fc;
 }
 
-/* =========================
-   BARRA SUPERIOR
-========================= */
+/* BARRA SUPERIOR*/
 
 .barra-superior {
   position: sticky;
@@ -163,9 +160,7 @@ input:focus-visible {
   border-color: #f1caca;
 }
 
-/* =========================
-   DISTRIBUCIÓN PRINCIPAL
-========================= */
+/* DISTRIBUCIÓN PRINCIPAL*/
 
 .layout-principal {
   display: flex;
@@ -341,9 +336,7 @@ input:focus-visible {
   line-height: 1.7;
 }
 
-/* =========================
-   ÁREA DE ARCHIVOS
-========================= */
+/* ÁREA DE ARCHIVOS*/
 
 .area-archivos {
   flex: 1 1 0;
@@ -353,9 +346,7 @@ input:focus-visible {
   background: #f7f9fc;
 }
 
-/* =========================
-   ENCABEZADO
-========================= */
+/* ENCABEZADO*/
 
 .encabezado-contenido {
   display: flex;
@@ -439,9 +430,7 @@ input:focus-visible {
   font-size: 18px;
 }
 
-/* =========================
-   MENÚ DE CREACIÓN
-========================= */
+/* MENÚ DE CREACIÓN */
 
 .menu-nuevo {
   position: absolute;
@@ -529,9 +518,7 @@ input:focus-visible {
   background: #edf0f5;
 }
 
-/* =========================
-   RUTA DE CARPETAS
-========================= */
+/* RUTA DE CARPETAS */
 
 .ruta-carpetas {
   display: flex;
@@ -738,9 +725,7 @@ input:focus-visible {
   transform: translateX(2px);
 }
 
-/* =========================
-   ESTADO VACÍO
-========================= */
+/* ESTADO VACÍO*/
 
 .estado-vacio {
   display: flex;
@@ -790,9 +775,7 @@ input:focus-visible {
   min-height: 40px;
 }
 
-/* =========================
-   RESPONSIVE: TABLET
-========================= */
+/* RESPONSIVE: TABLET */
 
 @media (max-width: 1050px) {
   .barra-superior {
@@ -818,9 +801,7 @@ input:focus-visible {
   }
 }
 
-/* =========================
-   RESPONSIVE: MÓVIL
-========================= */
+/* RESPONSIVE: MÓVIL*/
 
 @media (max-width: 760px) {
   .barra-superior {
@@ -985,25 +966,7 @@ input:focus-visible {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* =========================
-   ALMACENAMIENTO EN SIDEBAR
-========================= */
+/*ALMACENAMIENTO EN SIDEBAR */
 
 .almacenamiento {
   display: flex;
@@ -1078,9 +1041,7 @@ input:focus-visible {
   margin-bottom: 20px;
 }
 
-/* =========================
-   TARJETAS CON MENÚ CONTEXTUAL
-========================= */
+/* TARJETAS CON MENÚ CONTEXTUAL*/
 
 .tarjeta-elemento {
   position: relative;

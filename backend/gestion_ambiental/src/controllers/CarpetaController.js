@@ -1,5 +1,11 @@
-import mongoose from 'mongoose';
-import Carpeta from '../models/Carpeta.js';
+import mongoose from 'mongoose'
+import Carpeta from '../models/Carpeta.js'
+import { GridFSBucket } from 'mongodb'
+
+import Archivo from '../models/Archivo.js'
+import Comparticion from '../models/Comparticion.js'
+import Usuario from '../models/Usuario.js'
+
 
 const esObjectIdValido = (id) => typeof id === 'string' && mongoose.isValidObjectId(id)
 
@@ -9,30 +15,22 @@ const obtenerPropietarioId = (req) => req.usuario.id
 const crearCarpeta = async (req, res) => {
     try {
         const { nombre } = req.body;
-        const carpetaPadreId =
-            req.body.carpetaPadreId === undefined
-                ? null
-                : req.body.carpetaPadreId;
-
+        const carpetaPadreId = req.body.carpetaPadreId === undefined ? null : req.body.carpetaPadreId
         const propietarioId = obtenerPropietarioId(req)
 
         if (typeof nombre !== 'string' || !nombre.trim()) {
-            return res.status(400).json({mensaje: 'El nombre de la carpeta es obligatorio.'})
+            return res.status(400).json({ mensaje: 'El nombre de la carpeta es obligatorio.' })
         }
 
         if (carpetaPadreId !== null && !esObjectIdValido(carpetaPadreId)) {
-            return res.status(400).json({mensaje: 'carpetaPadreId debe ser un ObjectId válido o null.'})
+            return res.status(400).json({ mensaje: 'carpetaPadreId debe ser un ObjectId válido o null.' })
         }
 
         if (carpetaPadreId !== null) {
-            const padre = await Carpeta.findOne({
-                _id: carpetaPadreId,
-                propietarioId,
-                estado: 'activa'
-            });
+            const padre = await Carpeta.findOne({ _id: carpetaPadreId, propietarioId, estado: 'activa' })
 
             if (!padre) {
-                return res.status(404).json({mensaje: 'La carpeta padre no existe o no está disponible.'})
+                return res.status(404).json({ mensaje: 'La carpeta padre no existe o no está disponible.' })
             }
         }
 
@@ -45,12 +43,9 @@ const crearCarpeta = async (req, res) => {
             fechaCreacion: ahora,
             fechaModificacion: ahora,
             estado: 'activa'
-        });
+        })
 
-        return res.status(201).json({
-            mensaje: 'Carpeta creada correctamente.',
-            carpeta
-        });
+        return res.status(201).json({ mensaje: 'Carpeta creada correctamente.', carpeta })
     } catch (error) {
         if (error.name === 'ValidationError') {
             return res.status(400).json({
@@ -60,12 +55,12 @@ const crearCarpeta = async (req, res) => {
         }
 
         if (error.name === 'MongoServerError' && error.code === 121) {
-            return res.status(400).json({mensaje: 'La carpeta no cumple las validaciones de MongoDB.'})
+            return res.status(400).json({ mensaje: 'La carpeta no cumple las validaciones de MongoDB.' })
         }
 
         console.error('Error al crear carpeta:', error);
 
-        return res.status(500).json({mensaje: 'Error interno al crear la carpeta.'})
+        return res.status(500).json({ mensaje: 'Error interno al crear la carpeta.' })
     }
 };
 
@@ -80,7 +75,7 @@ const listarCarpetas = async (req, res) => {
 
         if (carpetaPadreId !== undefined && carpetaPadreId !== 'null') {
             if (!esObjectIdValido(carpetaPadreId)) {
-                return res.status(400).json({mensaje: 'carpetaPadreId no es válido.'});
+                return res.status(400).json({ mensaje: 'carpetaPadreId no es válido.' });
             }
 
             padreId = carpetaPadreId;
@@ -92,7 +87,7 @@ const listarCarpetas = async (req, res) => {
             }).select('_id');
 
             if (!padre) {
-                return res.status(404).json({mensaje: 'La carpeta padre no existe o no está disponible.'})
+                return res.status(404).json({ mensaje: 'La carpeta padre no existe o no está disponible.' })
             }
         }
 
@@ -110,7 +105,7 @@ const listarCarpetas = async (req, res) => {
         });
     } catch (error) {
         console.error('Error al listar carpetas:', error);
-        return res.status(500).json({mensaje: 'Error interno al listar las carpetas.'})
+        return res.status(500).json({ mensaje: 'Error interno al listar las carpetas.' })
     }
 };
 
@@ -121,7 +116,7 @@ const obtenerCarpeta = async (req, res) => {
         const propietarioId = obtenerPropietarioId(req);
 
         if (!esObjectIdValido(id)) {
-            return res.status(400).json({mensaje: 'El identificador de la carpeta no es válido.'})
+            return res.status(400).json({ mensaje: 'El identificador de la carpeta no es válido.' })
         }
 
         const carpeta = await Carpeta.findOne({
@@ -131,7 +126,7 @@ const obtenerCarpeta = async (req, res) => {
         }).lean();
 
         if (!carpeta) {
-            return res.status(404).json({mensaje: 'La carpeta no existe o no está disponible.'})
+            return res.status(404).json({ mensaje: 'La carpeta no existe o no está disponible.' })
         }
 
         const subcarpetas = await Carpeta.find({
@@ -149,7 +144,7 @@ const obtenerCarpeta = async (req, res) => {
     } catch (error) {
         console.error('Error al consultar carpeta:', error);
 
-        return res.status(500).json({mensaje: 'Error interno al consultar la carpeta.'})
+        return res.status(500).json({ mensaje: 'Error interno al consultar la carpeta.' })
     }
 };
 
@@ -161,14 +156,14 @@ const actualizarCarpeta = async (req, res) => {
         const camposPermitidos = ['nombre', 'carpetaPadreId'];
 
         if (!esObjectIdValido(id)) {
-            return res.status(400).json({mensaje: 'El identificador de la carpeta no es valido.'})
+            return res.status(400).json({ mensaje: 'El identificador de la carpeta no es valido.' })
         }
 
         const camposEnviados = Object.keys(req.body);
 
         if (camposEnviados.length === 0 ||
             camposEnviados.some((campo) => !camposPermitidos.includes(campo))) {
-            return res.status(400).json({mensaje:'Solo puedes modificar nombre y carpetaPadreId.'})
+            return res.status(400).json({ mensaje: 'Solo puedes modificar nombre y carpetaPadreId.' })
         }
 
         const carpeta = await Carpeta.findOne({
@@ -178,12 +173,12 @@ const actualizarCarpeta = async (req, res) => {
         });
 
         if (!carpeta) {
-            return res.status(404).json({mensaje: 'La carpeta no existe o no está disponible.'})
+            return res.status(404).json({ mensaje: 'La carpeta no existe o no está disponible.' })
         }
 
         if (Object.hasOwn(req.body, 'nombre')) {
             if (typeof req.body.nombre !== 'string' || !req.body.nombre.trim()) {
-                return res.status(400).json({mensaje: 'El nombre no puede estar vacío.'})
+                return res.status(400).json({ mensaje: 'El nombre no puede estar vacío.' })
             }
             carpeta.nombre = req.body.nombre.trim();
         }
@@ -192,13 +187,13 @@ const actualizarCarpeta = async (req, res) => {
             const nuevoPadreId = req.body.carpetaPadreId;
 
             if (nuevoPadreId !== null && !esObjectIdValido(nuevoPadreId)) {
-                return res.status(400).json({mensaje: 'carpetaPadreId debe ser un ObjectId válido o null.'})
+                return res.status(400).json({ mensaje: 'carpetaPadreId debe ser un ObjectId válido o null.' })
             }
 
             if (nuevoPadreId !== null) {
                 // Impide mover la carpeta dentro de sí misma
                 if (nuevoPadreId === id) {
-                    return res.status(400).json({mensaje: 'Una carpeta no puede ser su propia carpeta padre.'})
+                    return res.status(400).json({ mensaje: 'Una carpeta no puede ser su propia carpeta padre.' })
                 }
 
                 const padre = await Carpeta.findOne({
@@ -208,7 +203,7 @@ const actualizarCarpeta = async (req, res) => {
                 }).select('_id');
 
                 if (!padre) {
-                    return res.status(404).json({mensaje: 'La carpeta destino no existe.'})
+                    return res.status(404).json({ mensaje: 'La carpeta destino no existe.' })
                 }
 
                 // Recorre los antecesores del destino para impedir ciclos.
@@ -219,11 +214,11 @@ const actualizarCarpeta = async (req, res) => {
                     const antecesorTexto = antecesorId.toString();
 
                     if (antecesorTexto === id) {
-                        return res.status(400).json({mensaje:'No puedes mover una carpeta dentro de una de sus descendientes.'})
+                        return res.status(400).json({ mensaje: 'No puedes mover una carpeta dentro de una de sus descendientes.' })
                     }
 
                     if (visitados.has(antecesorTexto)) {
-                        return res.status(409).json({mensaje:'Se detectó una inconsistencia en la jerarquía de carpetas.'})
+                        return res.status(409).json({ mensaje: 'Se detectó una inconsistencia en la jerarquía de carpetas.' })
                     }
 
                     visitados.add(antecesorTexto);
@@ -234,7 +229,7 @@ const actualizarCarpeta = async (req, res) => {
                     }).select('_id carpetaPadreId');
 
                     if (!antecesor) {
-                        return res.status(409).json({mensaje:'La jerarquía del destino contiene una referencia inválida.'})
+                        return res.status(409).json({ mensaje: 'La jerarquía del destino contiene una referencia inválida.' })
                     }
                     antecesorId = antecesor.carpetaPadreId;
                 }
@@ -258,10 +253,10 @@ const actualizarCarpeta = async (req, res) => {
         }
 
         if (error.name === 'MongoServerError' && error.code === 121) {
-            return res.status(400).json({mensaje: 'La carpeta no cumple las validaciones de MongoDB.'})
+            return res.status(400).json({ mensaje: 'La carpeta no cumple las validaciones de MongoDB.' })
         }
         console.error('Error al actualizar carpeta:', error)
-        return res.status(500).json({mensaje: 'Error interno al actualizar la carpeta.'})
+        return res.status(500).json({ mensaje: 'Error interno al actualizar la carpeta.' })
     }
 };
 
@@ -273,7 +268,7 @@ const eliminarCarpeta = async (req, res) => {
         const propietarioId = obtenerPropietarioId(req);
 
         if (!esObjectIdValido(id)) {
-            return res.status(400).json({mensaje: 'El identificador de la carpeta no es válido.'});
+            return res.status(400).json({ mensaje: 'El identificador de la carpeta no es válido.' });
         }
 
         const carpeta = await Carpeta.findOne({
@@ -283,7 +278,7 @@ const eliminarCarpeta = async (req, res) => {
         }).select('_id');
 
         if (!carpeta) {
-            return res.status(404).json({mensaje: 'La carpeta no existe o no está disponible.'})
+            return res.status(404).json({ mensaje: 'La carpeta no existe o no está disponible.' })
         }
 
         // Se visitan los descendientes sin filtrar por estado.
@@ -332,12 +327,222 @@ const eliminarCarpeta = async (req, res) => {
         );
 
         return res.status(200).json({
-            mensaje:'La carpeta y sus descendientes activos se enviaron a la papelera.',
+            mensaje: 'La carpeta y sus descendientes activos se enviaron a la papelera.',
             carpetasEnviadas: resultado.modifiedCount
         });
     } catch (error) {
         console.error('Error al enviar carpeta a la papelera:', error);
-        return res.status(500).json({mensaje: 'Error interno al enviar la carpeta a la papelera.'})
+        return res.status(500).json({ mensaje: 'Error interno al enviar la carpeta a la papelera.' })
+    }
+}
+
+export const listarCarpetasPapelera = async (req, res) => {
+    try {
+        const carpetas = await Carpeta.find({
+            propietarioId: req.usuario.id,
+            estado: 'papelera'
+        }).sort({ fechaModificacion: -1 })
+
+        return res.status(200).json({ total: carpetas.length, carpetas })
+    } catch (error) {
+        console.error('Error al listar carpetas de la papelera:', error)
+        return res.status(500).json({ mensaje: 'No se pudieron consultar las carpetas de la papelera.' })
+    }
+}
+
+const restaurarCarpeta = async (req, res) => {
+    try {
+        const { id } = req.params
+        const propietarioId = obtenerPropietarioId(req)
+
+        if (!esObjectIdValido(id)) {
+            return res.status(400).json({ mensaje: 'El identificador de la carpeta no es válido.' })
+        }
+
+        const carpeta = await Carpeta.findOne({
+            _id: id,
+            propietarioId,
+            estado: 'papelera'
+        })
+
+        if (!carpeta) {
+            return res.status(404).json({ mensaje: 'La carpeta no existe en la papelera.' })
+        }
+
+        // Si la carpeta tiene un padre, este debe estar activo
+        if (carpeta.carpetaPadreId !== null) {
+            const padreActivo = await Carpeta.findOne({
+                _id: carpeta.carpetaPadreId,
+                propietarioId,
+                estado: 'activa'
+            }).select('_id')
+            if (!padreActivo) {
+                return res.status(409).json({ mensaje: 'Primero debes restaurar la carpeta padre para recuperar esta carpeta.' })
+            }
+        }
+
+        // Recorrer todas las subcarpetas descendientes
+        const idsVisitados = new Set([id]);
+        const pendientes = [id];
+
+        while (pendientes.length > 0) {
+            const padreActual = pendientes.pop()
+            const hijas = await Carpeta.find({
+                propietarioId,
+                carpetaPadreId: padreActual
+            }).select('_id')
+
+            for (const hija of hijas) {
+                const hijaId = hija._id.toString()
+                if (!idsVisitados.has(hijaId)) {
+                    idsVisitados.add(hijaId)
+                    pendientes.push(hijaId)
+                }
+            }
+        }
+        const ids = [...idsVisitados].map(valor => new mongoose.Types.ObjectId(valor))
+        const resultado = await Carpeta.updateMany(
+            {
+                _id: { $in: ids },
+                propietarioId,
+                estado: 'papelera'
+            },
+            {
+                $set: {
+                    estado: 'activa',
+                    fechaModificacion: new Date()
+                }
+            },
+            {
+                runValidators: true
+            }
+        )
+
+        return res.status(200).json({
+            mensaje: 'La carpeta y sus subcarpetas se restauraron correctamente.',
+            carpetasRestauradas: resultado.modifiedCount
+        })
+    } catch (error) {
+        console.error('Error al restaurar carpeta:', error)
+        return res.status(500).json({ mensaje: 'Error interno al restaurar la carpeta.' })
+    }
+}
+
+const eliminarCarpetaPermanente = async (req, res) => {
+    try {
+        const { id } = req.params
+        const propietarioId = obtenerPropietarioId(req)
+
+        if (!esObjectIdValido(id)) {
+            return res.status(400).json({ mensaje: 'El identificador de la carpeta no es válido.' })
+        }
+
+        // Solo se permite eliminar definitivamente una carpeta propia que este en papelera
+        const carpeta = await Carpeta.findOne({
+            _id: id,
+            propietarioId,
+            estado: 'papelera'
+        }).select('_id');
+
+        if (!carpeta) {
+            return res.status(404).json({ mensaje: 'La carpeta no existe en la papelera o no te pertenece.' })
+        }
+
+        // Obtener la carpeta y todos sus descendientes
+        const idsVisitados = new Set([id])
+        const pendientes = [id]
+
+        while (pendientes.length > 0) {
+            const padreActual = pendientes.pop()
+            const hijas = await Carpeta.find({ propietarioId, carpetaPadreId: padreActual }).select('_id')
+            for (const hija of hijas) {
+                const hijaId = hija._id.toString()
+                if (!idsVisitados.has(hijaId)) {
+                    idsVisitados.add(hijaId)
+                    pendientes.push(hijaId)
+                }
+            }
+        }
+
+        const idsCarpetas = [...idsVisitados].map(valor => new mongoose.Types.ObjectId(valor))
+
+        // Obtener todos los archivos ubicados en estas carpetas
+        const archivos = await Archivo.find({
+            propietarioId,
+            carpetaId: { $in: idsCarpetas }
+        }).select('_id gridFsId tamano');
+
+        // Eliminar los contenidos físicos almacenados en GridFS
+        const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: 'fs' })
+
+        for (const archivo of archivos) {
+            try {
+                await bucket.delete(archivo.gridFsId)
+            } catch (error) {
+                // Si el contenido ya no existe en GridFS, se puede seguir eliminando sus metadatos
+                if (error.code !== 26 && error.codeName !== 'FileNotFound') {
+                    throw error
+                }
+            }
+        }
+
+        const idsArchivos = archivos.map(archivo => archivo._id)
+
+        // Eliminar las comparticiones de las carpetas y archivos afectados
+        await Comparticion.deleteMany({
+            propietarioId,
+            $or: [
+                {
+                    tipoRecurso: 'carpeta',
+                    carpetaId: { $in: idsCarpetas }
+                },
+                {
+                    tipoRecurso: 'archivo',
+                    archivoId: { $in: idsArchivos }
+                }
+            ]
+        })
+
+        // Eliminar los metadatos de los archivos
+        await Archivo.deleteMany({ propietarioId, _id: { $in: idsArchivos } })
+
+        // Eliminar las carpetas, incluyendo sus descendientes
+        const resultado = await Carpeta.deleteMany({ propietarioId, _id: { $in: idsCarpetas } })
+
+        // Recalcular el espacio utilizado por el propietario
+        const usuario = await Usuario.findById(propietarioId);
+
+        if (usuario) {
+            const resultadoAlmacenamiento = await Archivo.aggregate([
+                {
+                    $match: {
+                        propietarioId: usuario._id,
+                        estado: { $ne: 'eliminado' }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: '$tamano' }
+                    }
+                }
+            ])
+
+            const utilizado = resultadoAlmacenamiento[0]?.total ?? 0
+
+            usuario.almacenamiento.utilizado = utilizado;
+            usuario.almacenamiento.disponible = Math.max(0, usuario.almacenamiento.capacidad - utilizado)
+            await usuario.save()
+        }
+
+        return res.status(200).json({
+            mensaje: 'La carpeta y todo su contenido se eliminaron definitivamente.',
+            carpetasEliminadas: resultado.deletedCount,
+            archivosEliminados: archivos.length
+        })
+    } catch (error) {
+        console.error('Error al eliminar definitivamente la carpeta:', error)
+        return res.status(500).json({ mensaje: 'No se pudo eliminar definitivamente la carpeta.' })
     }
 }
 
@@ -346,5 +551,7 @@ export {
     listarCarpetas,
     obtenerCarpeta,
     actualizarCarpeta,
-    eliminarCarpeta
+    eliminarCarpeta,
+    restaurarCarpeta,
+    eliminarCarpetaPermanente
 };

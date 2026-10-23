@@ -1,12 +1,13 @@
-import 'dotenv/config';
+import 'dotenv/config'
 
-import express from 'express';
-import cors from 'cors';
+import express from 'express'
+import cors from 'cors'
 
-import conectarDB from './config/DataBase.js';
-import usuarioRoutes from './routes/UsuarioRoutes.js';
-import carpetaRoutes from './routes/CarpetaRoutes.js';
-import authRoutes from './routes/AuthRoutes.js';
+import conectarDB from './config/DataBase.js'
+import usuarioRoutes from './routes/UsuarioRoutes.js'
+import carpetaRoutes from './routes/CarpetaRoutes.js'
+import authRoutes from './routes/AuthRoutes.js'
+import archivoRoutes from './routes/ArchivoRoutes.js'
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,12 +30,11 @@ app.get('/', (req, res) => {
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/carpetas', carpetaRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/archivos', archivoRoutes)
 
 // Respuesta para rutas inexistentes.
 app.use((req, res) => {
-    res.status(404).json({
-        mensaje: 'Ruta no encontrada.'
-    });
+    res.status(404).json({mensaje: 'Ruta no encontrada.'});
 });
 
 const iniciarServidor = async () => {
@@ -51,4 +51,4 @@ const iniciarServidor = async () => {
     }
 };
 
-iniciarServidor();
+iniciarServidor()

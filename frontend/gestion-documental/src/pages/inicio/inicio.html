@@ -182,9 +182,7 @@
             [class.tarjeta-archivo]="elemento.tipo === 'archivo'">
             <!-- Contenido de la tarjeta -->
             <button type="button" class="contenido-elemento" [attr.aria-label]="
-                    elemento.tipo === 'carpeta'
-                      ? 'Abrir carpeta ' + elemento.nombre
-                      : elemento.nombre + '.' + elemento.extension
+                    elemento.tipo === 'carpeta' ? 'Abrir carpeta ' + elemento.nombre : elemento.nombre + '.' + elemento.extension
                   " [class.contenido-clicable]="elemento.tipo === 'carpeta'" [disabled]="elemento.tipo === 'archivo'"
               (click)="abrirCarpeta(elemento)">
               <span class="icono-elemento">
@@ -216,7 +214,8 @@
               </span>
             </button>
 
-            <!-- Botón de tres puntos -->
+
+            <!-- Botón tres puntos -->
             <div class="contenedor-opciones">
               <button type="button" class="btn-opciones" [class.opciones-activas]="menuElementoId === elemento.id"
                 [attr.aria-label]="'Opciones de ' + nombreCompleto(elemento)"
@@ -227,6 +226,24 @@
 
               @if (menuElementoId === elemento.id) {
               <div class="menu-opciones" role="menu" (click)="$event.stopPropagation()">
+
+                @if (vistaActual === 'papelera') {
+                <!-- Opciones para elementos en papelera -->
+
+                <button type="button" role="menuitem" (click)="restablecerElemento(elemento)">
+                  <span class="material-symbols-outlined">restore_from_trash</span>
+                  <span>Restablecer</span>
+                </button>
+
+                <button type="button" class="opcion-papelera" role="menuitem"
+                  (click)="eliminarDefinitivamente(elemento)">
+                  <span class="material-symbols-outlined">delete_forever</span>
+                  <span>Eliminar</span>
+                </button>
+
+                } @else {
+                <!-- Opciones habituales fuera de la papelera -->
+
                 <button type="button" role="menuitem" (click)="descargarElemento(elemento)">
                   <span class="material-symbols-outlined">download</span>
                   <span>Descargar</span>
@@ -255,14 +272,15 @@
                 <div class="separador-menu"></div>
 
                 <button type="button" class="opcion-papelera" role="menuitem" (click)="moverAPapelera(elemento)">
-                  <span class="material-symbols-outlined">
-                    delete_outline
-                  </span>
+                  <span class="material-symbols-outlined">delete_outline</span>
                   <span>Mover a papelera</span>
                 </button>
+                }
+
               </div>
               }
             </div>
+
           </article>
 
           }
