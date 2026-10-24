@@ -44,7 +44,14 @@ export class Inicio implements OnInit {
   carpetaActualId: string | null = null;
   vistaActual: 'mis-carpetas' | 'compartidos' | 'papelera' = 'mis-carpetas';
 
-  // Datos de ejemplo. Después se cargarán desde el usuario autenticado.
+  archivoEnEdicion: Elemento | null = null;
+  contenidoArchivo = '';
+  permisoArchivo: 'lectura' | 'edicion' = 'lectura';
+  esPropietarioArchivo = false;
+  cargandoContenido = false;
+  guardandoContenido = false;
+
+  // Datos ejemplo
   capacidadBytes = 5 * 1024 ** 3;
   utilizadoBytes = 1.2 * 1024 ** 3;
 
@@ -265,8 +272,8 @@ export class Inicio implements OnInit {
 
     const termino = normalizar(this.busqueda)
     const elementosFuente = this.vistaActual === 'mis-carpetas' && termino
-        ? this.elementosBusquedaGlobal ?? this.elementos
-        : this.elementos;
+      ? this.elementosBusquedaGlobal ?? this.elementos
+      : this.elementos;
     return elementosFuente
       .filter(elemento => {
         if (this.vistaActual === 'papelera') {
@@ -333,6 +340,99 @@ export class Inicio implements OnInit {
 
   get capacidadTexto(): string {
     return this.formatearBytes(this.capacidadBytes);
+  }
+
+  get puedeEditarArchivo(): boolean {
+    return this.esPropietarioArchivo ||
+      this.permisoArchivo === 'edicion';
+  }
+
+  abrirArchivo(elemento: Elemento): void {
+    if (
+      elemento.tipo !== 'archivo' ||
+      elemento.enPapelera
+    ) {
+      return;
+    }
+
+    this.cerrarMenuElemento();
+    this.archivoEnEdicion = elemento;
+    this.contenidoArchivo = '';
+    this.cargandoContenido = true;
+    this.guardandoContenido = false;
+
+    this.archivosService.obtenerDetalle(elemento.id).pipe(
+      switchMap(detalle => {
+        this.esPropietarioArchivo = detalle.esPropietario;
+        this.permisoArchivo = detalle.permiso;
+
+        return this.archivosService.obtenerContenido(elemento.id);
+      }),
+      finalize(() => {
+        this.cargandoContenido = false;
+        this.cdr.detectChanges();
+      })
+    ).subscribe({
+      next: contenido => {
+        this.contenidoArchivo = contenido;
+      },
+      error: error => {
+        console.error('Error al abrir el archivo:', error);
+
+        this.archivoEnEdicion = null;
+
+        window.alert(
+          error.error?.mensaje ??
+          'No se pudo abrir el contenido del archivo.'
+        );
+      }
+    });
+  }
+
+  guardarContenidoArchivo(): void {
+    if (
+      !this.archivoEnEdicion ||
+      !this.puedeEditarArchivo ||
+      this.guardandoContenido
+    ) {
+      return;
+    }
+
+    this.guardandoContenido = true;
+
+    this.archivosService.actualizarContenido(
+      this.archivoEnEdicion.id,
+      this.contenidoArchivo
+    ).pipe(
+      finalize(() => {
+        this.guardandoContenido = false;
+        this.cdr.detectChanges();
+      })
+    ).subscribe({
+      next: () => {
+        window.alert('Contenido guardado correctamente.');
+        this.cargarElementos();
+      },
+      error: error => {
+        console.error('Error al guardar el contenido:', error);
+
+        window.alert(
+          error.error?.mensaje ??
+          'No se pudo guardar el contenido del archivo.'
+        );
+      }
+    });
+  }
+
+  cerrarEditorArchivo(): void {
+    if (this.guardandoContenido) {
+      return;
+    }
+
+    this.archivoEnEdicion = null;
+    this.contenidoArchivo = '';
+    this.permisoArchivo = 'lectura';
+    this.esPropietarioArchivo = false;
   }
 
   abrirCarpeta(elemento: Elemento): void {
@@ -520,32 +620,43 @@ export class Inicio implements OnInit {
   }
 
   descargarElemento(elemento: Elemento): void {
-    this.cerrarMenuElemento();
+    this.cerrarMenuElemento()
 
     if (elemento.tipo === 'carpeta') {
-      const contenido = this.obtenerContenidoCarpeta(elemento.id);
+      const contenido = this.obtenerContenidoCarpeta(elemento.id)
+
       this.descargarBlob(
         JSON.stringify(contenido, null, 2),
         `${elemento.nombre}.json`,
         'application/json'
-      );
-      return;
+      )
+
+      return
     }
 
-    const nombre = this.nombreCompleto(elemento);
+    const nombre = this.nombreCompleto(elemento)
 
-    // Contenido de demostración: todavía no se recupera el contenido real
-    // de los archivos desde MongoDB.
-    const contenido =
-      elemento.extension === 'md'
-        ? `# ${elemento.nombre}\n\nDocumento de ejemplo.`
-        : `Documento de ejemplo: ${elemento.nombre}`;
+    this.archivosService.descargar(elemento.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob)
+        const enlace = document.createElement('a')
 
-    this.descargarBlob(
-      contenido,
-      nombre,
-      elemento.extension === 'md' ? 'text/markdown' : 'text/plain'
-    );
+        enlace.href = url
+        enlace.download = nombre
+        enlace.style.display = 'none'
+
+        document.body.appendChild(enlace)
+        enlace.click()
+        enlace.remove()
+
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      },
+      error: error => {
+        console.error('Error al descargar el archivo:', error)
+
+        window.alert(error.error?.mensaje ?? 'No se pudo descargar el archivo.')
+      }
+    });
   }
 
   compartirElemento(elemento: Elemento): void {

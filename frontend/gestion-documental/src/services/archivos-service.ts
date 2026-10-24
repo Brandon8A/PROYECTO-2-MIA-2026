@@ -7,6 +7,12 @@ import { Archivo } from '../pages/archivos/models/archivo.model';
 import { RespuestaArchivos } from '../pages/archivos/models/respuesta-archivos.model';
 import { RespuestaArchivo } from '../pages/archivos/models/respuesta-archivo.model';
 
+export interface DetalleArchivo {
+  archivo: Archivo;
+  permiso: 'lectura' | 'edicion';
+  esPropietario: boolean;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -52,6 +58,38 @@ export class ArchivosService {
     return this.http.get(`${this.apiUrl}/${id}/descargar`, { ...this.obtenerOpciones(), responseType: 'blob', })
   }
 
+  obtenerDetalle(id: string): Observable<DetalleArchivo> {
+    return this.http.get<DetalleArchivo>(`${this.apiUrl}/${id}`, this.obtenerOpciones())
+  }
+
+  obtenerContenido(id: string): Observable<string> {
+    return this.http.get(
+      `${this.apiUrl}/${id}/contenido`,
+      {
+        ...this.obtenerOpciones(),
+        responseType: 'text'
+      }
+    );
+  }
+
+  actualizarContenido(
+    id: string,
+    contenido: string
+  ): Observable<string> {
+    const opciones = this.obtenerOpciones();
+
+    return this.http.put(
+      `${this.apiUrl}/${id}/contenido`,
+      contenido,
+      {
+        headers: opciones.headers.set(
+          'Content-Type',
+          'text/plain'
+        ),
+        responseType: 'text'
+      }
+    );
+  }
   actualizar(id: string, datos: { nombre?: string; carpetaId?: string | null }): Observable<Archivo> {
     return this.http.put<RespuestaArchivo>(`${this.apiUrl}/${id}`, datos, this.obtenerOpciones())
       .pipe(map(respuesta => respuesta.archivo));
@@ -67,7 +105,7 @@ export class ArchivosService {
   }
 
   restaurar(id: string): Observable<{ mensaje: string }> {
-    return this.http.patch<{ mensaje: string }>(`${this.apiUrl}/${id}/restaurar`, {},this.obtenerOpciones())
+    return this.http.patch<{ mensaje: string }>(`${this.apiUrl}/${id}/restaurar`, {}, this.obtenerOpciones())
   }
 
   eliminarDefinitivamente(id: string): Observable<{ mensaje: string }> {

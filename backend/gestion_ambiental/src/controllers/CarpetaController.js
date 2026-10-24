@@ -5,11 +5,27 @@ import { GridFSBucket } from 'mongodb'
 import Archivo from '../models/Archivo.js'
 import Comparticion from '../models/Comparticion.js'
 import Usuario from '../models/Usuario.js'
+import Actividad from '../models/Actividad.js'
 
 
 const esObjectIdValido = (id) => typeof id === 'string' && mongoose.isValidObjectId(id)
 
 const obtenerPropietarioId = (req) => req.usuario.id
+
+const registrarActividad = async (usuarioId, tipoOperacion, recursoTipo, recursoId, detalles) => {
+    try {
+        await Actividad.create({
+            usuarioId,
+            tipoOperacion,
+            recursoTipo,
+            recursoId: recursoId ?? null,
+            fechaHora: new Date(),
+            detalles
+        })
+    } catch (error) {
+        console.error('No se pudo registrar la actividad de carpeta:', error.message)
+    }
+}
 
 // POST /api/carpetas
 const crearCarpeta = async (req, res) => {
@@ -45,6 +61,13 @@ const crearCarpeta = async (req, res) => {
             estado: 'activa'
         })
 
+        await registrarActividad(
+            propietarioId,
+            'crear',
+            'carpeta',
+            carpeta._id,
+            `Se creó la carpeta ${carpeta.nombre}.`
+        )
         return res.status(201).json({ mensaje: 'Carpeta creada correctamente.', carpeta })
     } catch (error) {
         if (error.name === 'ValidationError') {
@@ -114,7 +137,6 @@ const obtenerCarpeta = async (req, res) => {
     try {
         const { id } = req.params;
         const propietarioId = obtenerPropietarioId(req);
-
         if (!esObjectIdValido(id)) {
             return res.status(400).json({ mensaje: 'El identificador de la carpeta no es válido.' })
         }
@@ -128,6 +150,14 @@ const obtenerCarpeta = async (req, res) => {
         if (!carpeta) {
             return res.status(404).json({ mensaje: 'La carpeta no existe o no está disponible.' })
         }
+
+        await registrarActividad(
+            propietarioId,
+            'consultar',
+            'carpeta',
+            carpeta._id,
+            `Se consultó la carpeta ${carpeta.nombre}.`
+        )
 
         const subcarpetas = await Carpeta.find({
             propietarioId,
@@ -175,6 +205,9 @@ const actualizarCarpeta = async (req, res) => {
         if (!carpeta) {
             return res.status(404).json({ mensaje: 'La carpeta no existe o no está disponible.' })
         }
+
+        const nombreAnterior = carpeta.nombre;
+        const padreAnteriorId = carpeta.carpetaPadreId ? carpeta.carpetaPadreId.toString() : null
 
         if (Object.hasOwn(req.body, 'nombre')) {
             if (typeof req.body.nombre !== 'string' || !req.body.nombre.trim()) {
@@ -240,6 +273,36 @@ const actualizarCarpeta = async (req, res) => {
         carpeta.fechaModificacion = new Date();
         await carpeta.save();
 
+        const padreActualId = carpeta.carpetaPadreId
+            ? carpeta.carpetaPadreId.toString()
+            : null
+
+        const cambioNombre = nombreAnterior !== carpeta.nombre;
+        const cambioUbicacion = padreAnteriorId !== padreActualId;
+
+        if (cambioNombre || cambioUbicacion) {
+            let tipoOperacion
+            let detalles
+
+            if (cambioNombre && cambioUbicacion) {
+                tipoOperacion = 'mover'
+                detalles = `Se renombró la carpeta ${nombreAnterior} a ${carpeta.nombre} y se cambió su ubicación.`;
+            } else if (cambioNombre) {
+                tipoOperacion = 'renombrar'
+                detalles = `Se renombró la carpeta ${nombreAnterior} a ${carpeta.nombre}.`
+            } else {
+                tipoOperacion = 'mover'
+                detalles = `Se movió la carpeta ${carpeta.nombre} a otra ubicación.`
+            }
+
+            await registrarActividad(
+                propietarioId,
+                tipoOperacion,
+                'carpeta',
+                carpeta._id,
+                detalles
+            );
+        }
         return res.status(200).json({
             mensaje: 'Carpeta actualizada correctamente.',
             carpeta
@@ -326,6 +389,13 @@ const eliminarCarpeta = async (req, res) => {
             }
         );
 
+        await registrarActividad(
+            propietarioId,
+            'eliminar',
+            'carpeta',
+            carpeta._id,
+            `Se envió a la papelera la carpeta y sus descendientes. Carpetas afectadas: ${resultado.modifiedCount}.`
+        )
         return res.status(200).json({
             mensaje: 'La carpeta y sus descendientes activos se enviaron a la papelera.',
             carpetasEnviadas: resultado.modifiedCount
@@ -418,6 +488,13 @@ const restaurarCarpeta = async (req, res) => {
             }
         )
 
+        await registrarActividad(
+            propietarioId,
+            'restaurar',
+            'carpeta',
+            carpeta._id,
+            `Se restauró la carpeta y sus subcarpetas. Carpetas restauradas: ${resultado.modifiedCount}.`
+        )
         return res.status(200).json({
             mensaje: 'La carpeta y sus subcarpetas se restauraron correctamente.',
             carpetasRestauradas: resultado.modifiedCount
@@ -535,6 +612,13 @@ const eliminarCarpetaPermanente = async (req, res) => {
             await usuario.save()
         }
 
+        await registrarActividad(
+            propietarioId,
+            'eliminar_permanente',
+            'carpeta',
+            carpeta._id,
+            `Se eliminó permanentemente la carpeta ${carpeta.nombre} y su contenido. Carpetas eliminadas: ${resultado.deletedCount}; archivos eliminados: ${archivos.length}.`
+        )
         return res.status(200).json({
             mensaje: 'La carpeta y todo su contenido se eliminaron definitivamente.',
             carpetasEliminadas: resultado.deletedCount,

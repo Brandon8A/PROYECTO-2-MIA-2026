@@ -690,3 +690,63 @@ tbody tr:hover {
     width: 100%;
   }
 }
+
+
+.navegacion-admin {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  margin: 0 0 24px;
+  background: #eef2f7;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.navegacion-admin a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 18px;
+  border-radius: 8px;
+  color: #475569;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 650;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.navegacion-admin a:hover {
+  color: #1d4ed8;
+  background: #ffffff;
+}
+
+.navegacion-admin a.activo {
+  color: #ffffff;
+  background: #2563eb;
+  box-shadow: 0 2px 5px rgb(37 99 235 / 18%);
+}
+
+.icono-nav {
+  font-size: 17px;
+  line-height: 1;
+}
+
+@media (max-width: 480px) {
+  .navegacion-admin {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .navegacion-admin a {
+    flex: 1;
+    padding: 10px;
+    font-size: 12px;
+  }
+}

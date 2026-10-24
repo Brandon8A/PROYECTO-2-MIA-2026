@@ -16,6 +16,26 @@
     </button>
   </header>
 
+  <nav class="navegacion-admin" aria-label="Navegación de administración">
+    <a routerLink="/admin/usuarios" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="icono-nav">♙</span>
+      Gestión de usuarios
+    </a>
+
+    <a routerLink="/admin/reportes" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="icono-nav">▥</span>
+      Reportes
+    </a>
+
+
+    <a routerLink="/admin/actividad" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="icono-nav">◷</span>
+      Historial de actividad
+    </a>
+
+  </nav>
+
+
   @if (mensaje) {
   <div class="alerta alerta-exito" role="status">
     <span class="material-symbols-outlined">check_circle</span>

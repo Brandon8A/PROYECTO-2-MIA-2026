@@ -1,0 +1,263 @@
+<main class="pagina-reportes">
+  <header class="encabezado">
+    <div>
+      <p class="sobretitulo">ADMINISTRACIÓN</p>
+      <h1>Reportes</h1>
+      <p class="descripcion">
+        Resumen de documentos y almacenamiento del sistema.
+      </p>
+    </div>
+
+    <button type="button" class="boton-actualizar" (click)="cargarReporte()" [disabled]="cargando">
+      <span aria-hidden="true">↻</span>
+      Actualizar
+    </button>
+  </header>
+
+  <nav class="navegacion-admin" aria-label="Navegación de administración">
+    <a routerLink="/admin/usuarios" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="icono-nav">♙</span>
+      Gestión de usuarios
+    </a>
+
+    <a routerLink="/admin/reportes" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="icono-nav">▥</span>
+      Reportes
+    </a>
+
+
+    <a routerLink="/admin/actividad" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="icono-nav">◷</span>
+      Historial de actividad
+    </a>
+
+  </nav>
+
+  <section class="filtros">
+    <div class="filtros-titulo">
+      <h2>Filtrar por fecha</h2>
+      <p>Selecciona el período de creación de los archivos.</p>
+    </div>
+
+    <form class="formulario-filtros" (ngSubmit)="cargarReporte()">
+      <label>
+        Fecha inicial
+        <input type="date" name="fechaInicio" [(ngModel)]="fechaInicio" />
+      </label>
+
+      <label>
+        Fecha final
+        <input type="date" name="fechaFin" [(ngModel)]="fechaFin" />
+      </label>
+
+      <div class="acciones-filtros">
+        <button type="submit" class="boton-principal" [disabled]="cargando">
+          Aplicar
+        </button>
+
+        <button type="button" class="boton-secundario" (click)="limpiarFiltros()"
+          [disabled]="cargando || (!fechaInicio && !fechaFin)">
+          Limpiar
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <div *ngIf="error" class="mensaje-error" role="alert">
+    <strong>No se pudo cargar el reporte.</strong>
+    <p>{{ error }}</p>
+  </div>
+
+  <div *ngIf="cargando" class="estado-carga" role="status">
+    Cargando información de los reportes...
+  </div>
+
+  <ng-container *ngIf="reporte as datos">
+    <section class="resumen">
+      <article class="tarjeta-resumen">
+        <div class="icono-tarjeta icono-azul">DOC</div>
+        <div>
+          <p>Total de archivos</p>
+          <h2>{{ datos.archivos.total | number }}</h2>
+          <span>Según el filtro de fechas</span>
+        </div>
+      </article>
+
+      <article class="tarjeta-resumen">
+        <div class="icono-tarjeta icono-morado">GB</div>
+        <div>
+          <p>Tamaño de los archivos</p>
+          <h2>{{ formatearBytes(datos.archivos.tamanoTotal) }}</h2>
+          <span>Archivos del período seleccionado</span>
+        </div>
+      </article>
+
+      <article class="tarjeta-resumen">
+        <div class="icono-tarjeta icono-verde">US</div>
+        <div>
+          <p>Usuarios registrados</p>
+          <h2>{{ datos.almacenamiento.totalUsuarios | number }}</h2>
+          <span>Usuarios en el sistema</span>
+        </div>
+      </article>
+
+      <article class="tarjeta-resumen">
+        <div class="icono-tarjeta icono-naranja">ALM</div>
+        <div>
+          <p>Almacenamiento utilizado</p>
+          <h2>
+            {{ formatearBytes(datos.almacenamiento.utilizadoTotal) }}
+          </h2>
+          <span>Uso registrado por los usuarios</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="paneles">
+      <article class="panel">
+        <div class="panel-encabezado">
+          <div>
+            <h2>Archivos por estado</h2>
+            <p>Distribución según el estado registrado.</p>
+          </div>
+        </div>
+
+        <div *ngIf="!datos.archivos.porEstado ||
+                 !Object.keys(datos.archivos.porEstado).length" class="sin-datos">
+          No hay archivos para mostrar.
+        </div>
+
+        <div class="lista-barras" *ngIf="datos.archivos.porEstado">
+          <div class="fila-barra" *ngFor="let entrada of datos.archivos.porEstado | keyvalue">
+            <div class="barra-informacion">
+              <span>{{ nombreEstado(entrada.key) }}</span>
+              <strong>{{ entrada.value.cantidad | number }}</strong>
+            </div>
+
+            <div class="barra-fondo">
+              <div class="barra-progreso barra-estado" [style.width.%]="obtenerPorcentaje(
+                  entrada.value.cantidad,
+                  datos.archivos.total
+                )"></div>
+            </div>
+
+            <small>
+              {{ formatearBytes(entrada.value.tamanoTotal) }}
+            </small>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-encabezado">
+          <div>
+            <h2>Archivos por extensión</h2>
+            <p>Tipos de documentos registrados.</p>
+          </div>
+        </div>
+
+        <div *ngIf="datos.archivos.porExtension.length === 0" class="sin-datos">
+          No hay extensiones para mostrar.
+        </div>
+
+        <div class="lista-barras">
+          <div class="fila-barra" *ngFor="let extension of datos.archivos.porExtension">
+            <div class="barra-informacion">
+              <span class="etiqueta-extension">
+                .{{ extension.extension }}
+              </span>
+              <strong>{{ extension.cantidad | number }}</strong>
+            </div>
+
+            <div class="barra-fondo">
+              <div class="barra-progreso barra-extension" [style.width.%]="obtenerPorcentaje(
+                  extension.cantidad,
+                  datos.archivos.total
+                )"></div>
+            </div>
+
+            <small>{{ formatearBytes(extension.tamanoTotal) }}</small>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel almacenamiento">
+      <div class="panel-encabezado">
+        <div>
+          <h2>Resumen de almacenamiento</h2>
+          <p>Capacidad registrada en los perfiles de usuario.</p>
+        </div>
+      </div>
+
+      <div class="almacenamiento-cifras">
+        <div>
+          <span>Capacidad total</span>
+          <strong>
+            {{ formatearBytes(datos.almacenamiento.capacidadTotal) }}
+          </strong>
+        </div>
+
+        <div>
+          <span>Utilizado</span>
+          <strong>
+            {{ formatearBytes(datos.almacenamiento.utilizadoTotal) }}
+          </strong>
+        </div>
+
+        <div>
+          <span>Disponible</span>
+          <strong>
+            {{ formatearBytes(datos.almacenamiento.disponibleTotal) }}
+          </strong>
+        </div>
+      </div>
+
+      <div class="barra-fondo barra-almacenamiento">
+        <div class="barra-progreso barra-utilizado" [style.width.%]="obtenerPorcentaje(
+            datos.almacenamiento.utilizadoTotal,
+            datos.almacenamiento.capacidadTotal
+          )"></div>
+      </div>
+    </section>
+
+    <section class="panel panel-tabla">
+      <div class="panel-encabezado">
+        <div>
+          <h2>Usuarios con más archivos</h2>
+          <p>Los diez principales según el reporte del servidor.</p>
+        </div>
+      </div>
+
+      <div class="tabla-contenedor">
+        <table>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Correo</th>
+              <th>Archivos</th>
+              <th>Espacio ocupado</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let usuario of datos.archivos.principalesUsuarios">
+              <td class="nombre-usuario">
+                {{ nombreUsuario(usuario) }}
+              </td>
+              <td>{{ usuario.correo || 'No disponible' }}</td>
+              <td>{{ usuario.cantidadArchivos | number }}</td>
+              <td>{{ formatearBytes(usuario.tamanoTotal) }}</td>
+            </tr>
+
+            <tr *ngIf="datos.archivos.principalesUsuarios.length === 0">
+              <td colspan="4" class="sin-datos">
+                No hay usuarios con archivos para mostrar.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</main>

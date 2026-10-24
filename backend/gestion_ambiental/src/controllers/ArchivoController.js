@@ -48,9 +48,7 @@ const registrarActividad = async (
 // Actualizar el almacenamiento utilizado por un usuario
 const actualizarAlmacenamiento = async (usuarioId) => {
     const usuario = await Usuario.findById(usuarioId)
-
-    if (!usuario) return;
-
+    if (!usuario) return
     const resultado = await Archivo.aggregate([
         {
             $match: {
@@ -65,14 +63,11 @@ const actualizarAlmacenamiento = async (usuarioId) => {
             }
         }
     ]);
-
-    const utilizado = resultado[0]?.utilizado ?? 0;
-
-    usuario.almacenamiento.utilizado = utilizado;
+    const utilizado = resultado[0]?.utilizado ?? 0
+    usuario.almacenamiento.utilizado = utilizado
     usuario.almacenamiento.disponible = Math.max(0, usuario.almacenamiento.capacidad - utilizado)
-
-    await usuario.save();
-};
+    await usuario.save()
+}
 
 // Obtener un archivo propio o compartido directamente con el usuario.
 // Los permisos de una carpeta compartida se implementarán en una fase
@@ -276,28 +271,28 @@ const listarArchivos = async (req, res) => {
 // GET /api/archivos/:id
 const obtenerArchivo = async (req, res) => {
     try {
-        const { id } = req.params;
-
+        const { id } = req.params
         if (!esObjectIdValido(id)) {
             return res.status(400).json({ mensaje: 'El identificador del archivo no es válido.' })
         }
         const acceso = await obtenerArchivoConAcceso(id, obtenerPropietarioId(req))
-
         if (!acceso) {
             return res.status(404).json({ mensaje: 'El archivo no existe o no tienes acceso.' })
         }
-
+        await registrarActividad(
+            obtenerPropietarioId(req),
+            'consultar',
+            'archivo',
+            acceso.archivo._id,
+            `Se consultó el archivo ${acceso.archivo.nombre}${acceso.archivo.extension}.`
+        );
         return res.status(200).json({
-            archivo: {
-                ...acceso.archivo.toObject(),
-                gridFsId: undefined
-            },
+            archivo: { ...acceso.archivo.toObject(), gridFsId: undefined },
             permiso: acceso.permiso,
             esPropietario: acceso.esPropietario
         })
     } catch (error) {
-        console.error('Error al consultar archivo:', error);
-
+        console.error('Error al consultar archivo:', error)
         return res.status(500).json({ mensaje: 'Error interno al consultar el archivo.' })
     }
 }
@@ -361,9 +356,8 @@ const actualizarArchivo = async (req, res) => {
     try {
         const { id } = req.params;
         const usuarioId = obtenerPropietarioId(req);
-        const camposPermitidos = ['nombre', 'carpetaId'];
-        const camposEnviados = Object.keys(req.body);
-
+        const camposPermitidos = ['nombre', 'carpetaId']
+        const camposEnviados = Object.keys(req.body)
         if (!esObjectIdValido(id)) {
             return res.status(400).json({ mensaje: 'El identificador del archivo no es válido.' })
         }
@@ -377,6 +371,8 @@ const actualizarArchivo = async (req, res) => {
             propietarioId: usuarioId,
             estado: 'activo'
         })
+        const nombreAnterior = `${archivo.nombre}${archivo.extension}`
+        const carpetaAnteriorId = archivo.carpetaId ? archivo.carpetaId.toString() : null
 
         if (!archivo) {
             return res.status(404).json({ mensaje: 'El archivo no existe o no está disponible.' })
@@ -398,34 +394,51 @@ const actualizarArchivo = async (req, res) => {
 
         if (Object.hasOwn(req.body, 'carpetaId')) {
             const nuevaCarpetaId = req.body.carpetaId
-
             if (nuevaCarpetaId !== null && !esObjectIdValido(nuevaCarpetaId)) {
                 return res.status(400).json({ mensaje: 'carpetaId debe ser un ObjectId válido o null.' })
             }
-
             if (nuevaCarpetaId !== null) {
                 const carpeta = await Carpeta.findOne({
                     _id: nuevaCarpetaId,
                     propietarioId: usuarioId,
                     estado: 'activa'
-                }).select('_id');
-
+                }).select('_id')
                 if (!carpeta) {
                     return res.status(404).json({ mensaje: 'La carpeta destino no existe o no está disponible.' })
                 }
             }
             archivo.carpetaId = nuevaCarpetaId;
         }
+
         archivo.fechaModificacion = new Date();
         await archivo.save();
 
-        await registrarActividad(
-            usuarioId,
-            'renombrar',
-            'archivo',
-            archivo._id,
-            `Se actualizó el archivo ${archivo.nombre}${archivo.extension}.`
-        )
+        const nombreActual = `${archivo.nombre}${archivo.extension}`;
+        const carpetaActualId = archivo.carpetaId ? archivo.carpetaId.toString() : null
+
+        let tipoOperacion;
+        let detalles;
+
+        if (nombreAnterior !== nombreActual && carpetaAnteriorId !== carpetaActualId) {
+            tipoOperacion = 'mover';
+            detalles = `Se renombró el archivo ${nombreAnterior} a ${nombreActual} y se cambió de carpeta.`;
+        } else if (nombreAnterior !== nombreActual) {
+            tipoOperacion = 'renombrar';
+            detalles = `Se renombró el archivo ${nombreAnterior} a ${nombreActual}.`;
+        } else if (carpetaAnteriorId !== carpetaActualId) {
+            tipoOperacion = 'mover';
+            detalles = `Se movió el archivo ${nombreActual} a otra carpeta.`;
+        }
+
+        if (tipoOperacion) {
+            await registrarActividad(
+                usuarioId,
+                tipoOperacion,
+                'archivo',
+                archivo._id,
+                detalles
+            )
+        }
 
         return res.status(200).json({ mensaje: 'Archivo actualizado correctamente.', archivo })
     } catch (error) {
@@ -612,6 +625,154 @@ const eliminarArchivoPermanente = async (req, res) => {
         return res.status(500).json({ mensaje: 'No se pudo eliminar definitivamente el archivo.' })
     }
 }
+
+// GET /api/archivos/:id/contenido
+export const obtenerContenidoArchivo = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!esObjectIdValido(id)) {
+            return res.status(400).json({mensaje: 'El identificador del archivo no es válido.'})
+        }
+
+        const acceso = await obtenerArchivoConAcceso(id, obtenerPropietarioId(req))
+
+        if (!acceso) {
+            return res.status(404).json({mensaje: 'El archivo no existe o no tienes acceso.'})
+        }
+
+        const archivo = acceso.archivo;
+        const stream = obtenerBucket().openDownloadStream(
+            archivo.gridFsId
+        );
+
+        const fragmentos = [];
+
+        for await (const fragmento of stream) {
+            fragmentos.push(Buffer.from(fragmento));
+        }
+
+        res.setHeader(
+            'Content-Type',
+            `${archivo.tipoMime}; charset=utf-8`
+        );
+
+        return res.status(200).send(Buffer.concat(fragmentos).toString('utf8'))
+    } catch (error) {
+        console.error('Error al obtener el contenido:', error);
+
+        if (!res.headersSent) {
+            return res.status(500).json({mensaje: 'No se pudo obtener el contenido del archivo.'})
+        }
+    }
+};
+
+
+// PUT /api/archivos/:id/contenido
+export const actualizarContenidoArchivo = async (req, res) => {
+    let nuevoGridFsId = null;
+
+    try {
+        const { id } = req.params;
+
+        if (!esObjectIdValido(id)) {
+            return res.status(400).json({
+                mensaje: 'El identificador del archivo no es válido.'
+            });
+        }
+
+        const acceso = await obtenerArchivoConAcceso(
+            id,
+            obtenerPropietarioId(req)
+        );
+
+        if (!acceso) {
+            return res.status(404).json({
+                mensaje: 'El archivo no existe o no tienes acceso.'
+            });
+        }
+
+        // Solo el propietario o quien tenga permiso de edición 
+        if (!acceso.esPropietario && acceso.permiso !== 'edicion') {
+            return res.status(403).json({mensaje: 'No tienes permiso para editar este archivo.'})
+        }
+
+        if (typeof req.body !== 'string') {
+            return res.status(400).json({mensaje: 'El contenido del archivo debe ser texto.'})
+        }
+
+        const contenido = Buffer.from(req.body, 'utf8');
+
+        if (contenido.length > TAMANO_MAXIMO) {
+            return res.status(413).json({
+                mensaje: 'El archivo supera el límite de 10 MB.'
+            });
+        }
+
+        const archivo = acceso.archivo;
+        const bucket = obtenerBucket();
+        const gridFsIdAnterior = archivo.gridFsId;
+
+        // Primero almacenamos la nueva version en GridFS
+        const uploadStream = bucket.openUploadStream(
+            `${archivo.nombre}${archivo.extension}`,
+            {
+                contentType: archivo.tipoMime,
+                metadata: {
+                    propietarioId: archivo.propietarioId,
+                    extension: archivo.extension
+                }
+            }
+        );
+
+        nuevoGridFsId = await new Promise((resolve, reject) => {
+            uploadStream.once('error', reject);
+
+            uploadStream.once('finish', () => {
+                resolve(uploadStream.id);
+            });
+
+            uploadStream.end(contenido);
+        });
+
+        // Actualizamos los metadatos únicamente cuando la nueva versión ya se almacenó correctamente
+        archivo.gridFsId = nuevoGridFsId;
+        archivo.tamano = contenido.length;
+        archivo.fechaModificacion = new Date();
+
+        try {
+            await archivo.save();
+        } catch (error) {
+            // Si falla MongoDB, eliminamos la nueva versión
+            await bucket.delete(nuevoGridFsId).catch(() => {});
+            nuevoGridFsId = null;
+            throw error;
+        }
+
+        if (gridFsIdAnterior && gridFsIdAnterior.toString() !== nuevoGridFsId.toString()) {
+            await bucket.delete(gridFsIdAnterior).catch(error => {
+                console.error(
+                    'No se pudo eliminar la versión anterior de GridFS:',
+                    error
+                );
+            });
+        }
+
+        await registrarActividad(
+            obtenerPropietarioId(req),
+            'editar',
+            'archivo',
+            archivo._id,
+            { nombre: `${archivo.nombre}${archivo.extension}` }
+        );
+
+        return res.status(200).send('Contenido guardado correctamente.')
+    } catch (error) {
+        console.error('Error al actualizar el contenido:', error);
+
+        return res.status(500).json({mensaje: 'No se pudo guardar el contenido del archivo.'})
+    }
+};
 
 export {
     cargarArchivo,

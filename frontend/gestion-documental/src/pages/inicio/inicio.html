@@ -58,6 +58,59 @@
         </footer>
       </form>
     </section>
+    @if (archivoEnEdicion) {
+    <div class="modal-compartir-fondo" (click)="cerrarEditorArchivo()">
+
+      <section class="modal-compartir" role="dialog" aria-modal="true" aria-labelledby="titulo-editor"
+        (click)="$event.stopPropagation()">
+
+        <header class="modal-compartir-cabecera">
+          <div>
+            <h2 id="titulo-editor">
+              {{ nombreCompleto(archivoEnEdicion) }}
+            </h2>
+
+            <p>
+              @if (esPropietarioArchivo) {
+              Propietario
+              } @else if (permisoArchivo === 'edicion') {
+              Permiso de edición
+              } @else {
+              Solo lectura
+              }
+            </p>
+          </div>
+
+          <button type="button" class="modal-compartir-cerrar" [disabled]="guardandoContenido"
+            aria-label="Cerrar editor" (click)="cerrarEditorArchivo()">
+            &times;
+          </button>
+        </header>
+
+        @if (cargandoContenido) {
+        <p>Cargando contenido del archivo...</p>
+        } @else {
+        <textarea [(ngModel)]="contenidoArchivo" [readonly]="!puedeEditarArchivo" [disabled]="guardandoContenido"
+          rows="18" aria-label="Contenido del archivo" placeholder="El archivo está vacío.">
+        </textarea>
+
+        <footer class="acciones-compartir">
+          <button type="button" class="btn-cancelar-compartir" [disabled]="guardandoContenido"
+            (click)="cerrarEditorArchivo()">
+            Cerrar
+          </button>
+
+          @if (puedeEditarArchivo) {
+          <button type="button" class="btn-confirmar-compartir" [disabled]="guardandoContenido || cargandoContenido"
+            (click)="guardarContenidoArchivo()">
+            {{ guardandoContenido ? 'Guardando...' : 'Guardar cambios' }}
+          </button>
+          }
+        </footer>
+        }
+      </section>
+    </div>
+    }
   </div>
   }
 
@@ -256,8 +309,9 @@
             <!-- Contenido de la tarjeta -->
             <button type="button" class="contenido-elemento" [attr.aria-label]="
                     elemento.tipo === 'carpeta' ? 'Abrir carpeta ' + elemento.nombre : elemento.nombre + '.' + elemento.extension
-                  " [class.contenido-clicable]="elemento.tipo === 'carpeta'" [disabled]="elemento.tipo === 'archivo'"
-              (click)="abrirCarpeta(elemento)">
+                  " [class.contenido-clicable]="true" (click)="elemento.tipo === 'carpeta'
+                  ? abrirCarpeta(elemento)
+                  : abrirArchivo(elemento)">
               <span class="icono-elemento">
                 @if (elemento.tipo === 'carpeta') {
                 <span class="material-symbols-outlined">folder</span>

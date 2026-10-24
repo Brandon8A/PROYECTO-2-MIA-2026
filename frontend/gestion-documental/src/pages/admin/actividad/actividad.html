@@ -1,0 +1,177 @@
+<main class="pagina-actividad">
+  <header class="encabezado-actividad">
+    <div>
+      <p class="sobretitulo">ADMINISTRACIÓN</p>
+      <h1>Historial de actividad</h1>
+      <p class="descripcion">
+        Consulta las operaciones realizadas por los usuarios sobre
+        archivos, carpetas y recursos compartidos.
+      </p>
+    </div>
+
+    <button type="button" class="boton-actualizar" (click)="cargarHistorial()" [disabled]="cargando">
+      Actualizar historial
+    </button>
+  </header>
+
+  <nav class="navegacion-admin" aria-label="Navegación de administración">
+    <a routerLink="/admin/usuarios" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      Gestión de usuarios
+    </a>
+
+    <a routerLink="/admin/reportes" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      Reportes
+    </a>
+
+    <a routerLink="/admin/actividad" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+      Historial de actividad
+    </a>
+  </nav>
+
+  <section class="filtros-actividad">
+    <div class="titulo-filtros">
+      <h2>Filtros de búsqueda</h2>
+      <p>Filtra los registros para encontrar una operación específica.</p>
+    </div>
+
+    <form class="formulario-actividad" (ngSubmit)="cargarHistorial()">
+      <label>
+        Fecha inicial
+        <input type="date" name="fechaInicio" [(ngModel)]="fechaInicio" />
+      </label>
+
+      <label>
+        Fecha final
+        <input type="date" name="fechaFin" [(ngModel)]="fechaFin" />
+      </label>
+
+      <label>
+        ID del usuario
+        <input type="text" name="usuarioId" [(ngModel)]="usuarioId" placeholder="ObjectId del usuario" />
+      </label>
+
+      <label>
+        Operación
+        <select name="tipoOperacion" [(ngModel)]="tipoOperacion">
+          <option value="">Todas las operaciones</option>
+          <option value="crear">Crear</option>
+          <option value="consultar">Consultar</option>
+          <option value="subir">Subir archivo</option>
+          <option value="descargar">Descargar</option>
+          <option value="renombrar">Cambiar nombre</option>
+          <option value="mover">Mover</option>
+          <option value="eliminar">Mover a papelera</option>
+          <option value="restaurar">Restaurar</option>
+          <option value="eliminar_permanente">Eliminar permanentemente</option>
+          <option value="compartir">Compartir</option>
+          <option value="modificar_permiso">Modificar permiso</option>
+          <option value="revocar_comparticion">Revocar acceso</option>
+          <option value="iniciar_sesion">Iniciar sesión</option>
+          <option value="cerrar_sesion">Cerrar sesión</option>
+        </select>
+      </label>
+
+      <label>
+        Tipo de recurso
+        <select name="recursoTipo" [(ngModel)]="recursoTipo">
+          <option value="">Todos los recursos</option>
+          <option value="archivo">Archivo</option>
+          <option value="carpeta">Carpeta</option>
+          <option value="comparticion">Recurso compartido</option>
+          <option value="usuario">Usuario</option>
+          <option value="sistema">Sistema</option>
+        </select>
+      </label>
+
+      <div class="acciones-actividad">
+        <button type="submit" class="boton-principal" [disabled]="cargando">
+          Buscar
+        </button>
+
+        <button type="button" class="boton-secundario" (click)="limpiarFiltros()" [disabled]="cargando">
+          Limpiar filtros
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <div *ngIf="error" class="mensaje-error" role="alert">
+    <strong>No se pudo consultar el historial.</strong>
+    <p>{{ error }}</p>
+  </div>
+
+  <div *ngIf="cargando" class="estado-carga" role="status">
+    Consultando registros de actividad...
+  </div>
+
+  <section class="panel-historial">
+    <header class="encabezado-tabla">
+      <div>
+        <h2>Registro de operaciones</h2>
+        <p>
+          {{ total }} registro(s) encontrados.
+          <span *ngIf="total > actividades.length">
+            Se muestran los {{ actividades.length }} más recientes.
+          </span>
+        </p>
+      </div>
+    </header>
+
+    <div class="tabla-contenedor">
+      <table>
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Operación</th>
+            <th>Recurso</th>
+            <th>Identificador</th>
+            <th>Detalles</th>
+            <th>Fecha y hora</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr *ngFor="let actividad of actividades">
+            <td>
+              <div class="usuario-celda">
+                <strong>{{ nombreUsuario(actividad) }}</strong>
+                <small>{{ correoUsuario(actividad) }}</small>
+              </div>
+            </td>
+
+            <td>
+              <span class="etiqueta-operacion">
+                {{ nombreOperacion(actividad.tipoOperacion) }}
+              </span>
+            </td>
+
+            <td>{{ nombreRecurso(actividad.recursoTipo) }}</td>
+
+            <td class="identificador">
+              {{ actividad.recursoId || 'No disponible' }}
+            </td>
+
+            <td class="detalle-celda">
+              {{ obtenerDetalle(actividad) }}
+            </td>
+
+            <td class="fecha-celda">
+              {{ formatearFecha(actividad.fechaHora) }}
+            </td>
+          </tr>
+
+          <tr *ngIf="!cargando && actividades.length === 0">
+            <td colspan="6" class="sin-registros">
+              No se encontraron actividades con los filtros seleccionados.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="pie-tabla" *ngIf="total > 500">
+      Se encontraron más de 500 registros. Se muestran únicamente los
+      500 más recientes que cumplen los filtros.
+    </footer>
+  </section>
+</main>

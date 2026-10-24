@@ -12,7 +12,9 @@ import {
     eliminarArchivo,
     listarArchivosPapelera,
     restaurarArchivo,
-    eliminarArchivoPermanente
+    eliminarArchivoPermanente,
+    obtenerContenidoArchivo,
+    actualizarContenidoArchivo
 } from '../controllers/ArchivoController.js'
 
 const router = express.Router()
@@ -72,6 +74,13 @@ router.patch('/:id/restaurar', restaurarArchivo)
 
 // Eliminar permanentemente un archivo de la papelera
 router.delete('/:id/permanente', eliminarArchivoPermanente)
+
+router.get('/:id/contenido', obtenerContenidoArchivo);
+
+router.put('/:id/contenido', express.text({
+        type: 'text/plain',
+        limit: '10mb'
+    }), actualizarContenidoArchivo)
 
 // Consultar un archivo
 router.get('/:id', obtenerArchivo)

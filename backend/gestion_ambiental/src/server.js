@@ -9,6 +9,8 @@ import carpetaRoutes from './routes/CarpetaRoutes.js'
 import authRoutes from './routes/AuthRoutes.js'
 import archivoRoutes from './routes/ArchivoRoutes.js'
 import comparticionRoutes from './routes/ComparticionRoutes.js'
+import reporteRoutes from './routes/ReporteRoutes.js'
+import reporteActividadRoutes from './routes/ReporteActividadRoutes.js'
 
 const app = express();
 const PORT = process.env.PORT || 3000
@@ -28,6 +30,8 @@ app.use('/api/carpetas', carpetaRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/archivos', archivoRoutes)
 app.use('/api/comparticiones', comparticionRoutes)
+app.use('/api/reportes', reporteRoutes)
+app.use('/api/reportes/actividad', reporteActividadRoutes)
 
 // Respuesta para rutas inexistentes.
 app.use((req, res) => { res.status(404).json({ mensaje: 'Ruta no encontrada.' }) })

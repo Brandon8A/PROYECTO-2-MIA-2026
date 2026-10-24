@@ -4,6 +4,7 @@ import { RespuestaLogin } from '../pages/login/models/respuesta-login.model';
 import { CredencialesLogin } from '../pages/login/models/credenciales-login.model'
 import { Observable, tap } from 'rxjs';
 import { UsuarioAutenticado } from '../pages/login/models/usuario-autenticado.model';
+import { HttpHeaders } from '@angular/common/http';
 
 @Injectable({
   providedIn: 'root',
@@ -19,7 +20,7 @@ export class AuthService {
    * @param credenciales Parametro que tiene las credenciales con las que se va a iniciar sesion
    * @returns un observable que contiene la respuesta del backend con el token de autenticacion
    */
-  iniciarSesion(credenciales: CredencialesLogin): Observable<RespuestaLogin>{
+  iniciarSesion(credenciales: CredencialesLogin): Observable<RespuestaLogin> {
     return this.http.post<RespuestaLogin>(`${this.apiURL}/login`, credenciales).pipe(
       tap((respuesta) => {
         localStorage.setItem('token', respuesta.token);
@@ -40,6 +41,18 @@ export class AuthService {
    * Funcion que 'eliminia' la informacion del usuario y el token de autenticacion almacenados en localstorage
    */
   cerrarSesion(): void {
+    const token = this.obtenerToken()
+
+    if (token) {
+      const headers = new HttpHeaders({Authorization: `Bearer ${token}`})
+
+      this.http.post(`${this.apiURL}/logout`, {}, { headers }).subscribe({
+        error: (error) => {
+          console.error('No se pudo registrar el cierre de sesión:', error)
+        }
+      })
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
   }

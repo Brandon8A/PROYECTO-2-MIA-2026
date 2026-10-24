@@ -6,6 +6,8 @@ import { AuthGuard } from './guards/auth.guard';
 import { AccesoDenegado } from '../pages/acceso-denegado/acceso-denegado';
 import { rolGuard } from './guards/rol.guard';
 import { UsuariosAdmin } from '../pages/admin/usuarios/usuarios';
+import { ReportesAdmin } from '../pages/admin/reportes/reportes';
+import { ActividadAdmin } from '../pages/admin/actividad/actividad';
 
 export const routes: Routes = [
   { path: 'login', component: Login},
@@ -13,6 +15,8 @@ export const routes: Routes = [
   { path: 'carpetas', component: Carpetas, canActivate: [AuthGuard]},
   { path: 'acceso-denegado', component: AccesoDenegado},
   { path: 'admin/usuarios', component: UsuariosAdmin, canActivate: [AuthGuard]},
+  { path: 'admin/reportes', component: ReportesAdmin, canActivate: [AuthGuard]},
+  { path: 'admin/actividad', component: ActividadAdmin, canActivate: [AuthGuard]},
   { path: '', redirectTo: 'inicio', pathMatch: 'full'},
   { path: '**', redirectTo: 'inicio'}
 ];

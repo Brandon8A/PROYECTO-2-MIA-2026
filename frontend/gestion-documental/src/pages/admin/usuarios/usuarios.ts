@@ -7,13 +7,14 @@ import { UsuarioAdmin } from '../models/usuario-admin.model';
 import { DatosCrearUsuario } from '../models/datos-crear-usuario.model';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../services/auth';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 
 type ModoFormulario = 'crear' | 'editar';
 
 @Component({
   selector: 'app-usuarios-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink, RouterLinkActive],
   templateUrl: './usuarios.html',
   styleUrl: './usuarios.css'
 })
