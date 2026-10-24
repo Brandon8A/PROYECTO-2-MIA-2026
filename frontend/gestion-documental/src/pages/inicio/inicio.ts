@@ -1,27 +1,39 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router'
-import { forkJoin } from 'rxjs';
+import { forkJoin, finalize } from 'rxjs';
 
 import { AuthService } from '../../services/auth';
 import { CarpetasService } from '../../services/carpetas';
 import { ArchivosService } from '../../services/archivos-service';
 import { Elemento, ExtensionArchivo } from './models/elemento.model';
+import { ComparticionesService } from '../../services/comparticiones-service';
+import { TipoPermisoCompartido } from '../../services/comparticiones-service';
+import { ComparticionRecibida } from '../comparticion/models/comparticion-recibida.model';
 
 @Component({
   selector: 'app-inicio',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './inicio.html',
   styleUrl: './inicio.css'
 })
 export class Inicio implements OnInit {
 
-  private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService)
+  private readonly router = inject(Router)
+  private readonly cdr = inject(ChangeDetectorRef)
 
   private readonly carpetasService = inject(CarpetasService)
   private readonly archivosService = inject(ArchivosService)
+  private readonly comparticionesService = inject(ComparticionesService)
+
+
+  elementoCompartir: Elemento | null = null;
+  correoCompartir = '';
+  permisoCompartir: TipoPermisoCompartido = 'lectura';
+  compartiendo = false;
 
   busqueda = '';
   menuNuevoAbierto = false;
@@ -42,16 +54,72 @@ export class Inicio implements OnInit {
     this.cargarElementos()
   }
 
-
   cargarElementos(): void {
     this.cargando = true
     this.errorCarga = ''
 
-    // Si estamos en la papelera, consultar las carpetas
-    // cuyo estado en el backend es "papelera".
+    if (this.vistaActual === 'compartidos') {
+      this.comparticionesService.listarRecibidas()
+        .pipe(
+          finalize(() => {
+            this.cargando = false
+            this.cdr.detectChanges()
+          })
+        )
+        .subscribe({
+          next: (respuesta) => {
+            this.elementos = respuesta.comparticiones
+              .filter((comparticion: ComparticionRecibida) =>
+                comparticion.tipoRecurso === 'archivo'
+                  ? comparticion.archivoId !== null
+                  : comparticion.carpetaId !== null
+              ).map((comparticion: ComparticionRecibida): Elemento => {
+                const esArchivo = comparticion.tipoRecurso === 'archivo'
+                const archivo = comparticion.archivoId
+                const carpeta = comparticion.carpetaId
+                const recurso = esArchivo ? archivo! : carpeta!
+                const remitente = comparticion.propietarioId
+
+                return {
+                  id: recurso._id,
+                  nombre: recurso.nombre,
+                  tipo: esArchivo ? 'archivo' : 'carpeta',
+                  ...(esArchivo
+                    ? {
+                      extension: archivo!.extension.replace(/^\./, '') as ExtensionArchivo
+                    }
+                    : {}),
+                  carpetaPadreId: esArchivo
+                    ? null
+                    : carpeta!.carpetaPadreId ?? null,
+                  fechaModificacion: new Date(comparticion.fechaComparticion),
+                  enPapelera: false,
+                  compartidoPor: `${remitente.nombres} ${remitente.apellidos}`.trim(),
+                  correoCompartidor: remitente.correo,
+                  permisoCompartido: comparticion.tipoPermiso
+                }
+              })
+            this.cdr.detectChanges()
+          },
+          error: (error) => {
+            console.error('Error al cargar los recursos compartidos:', error)
+            this.errorCarga = error.error?.mensaje ?? 'No se pudieron cargar los recursos compartidos.'
+            this.elementos = []
+          }
+        })
+      return
+    }
+
+    // Consultar la papelera desde el backend.
     if (this.vistaActual === 'papelera') {
-      this.carpetasService.listarPapelera().subscribe({
-        next: carpetas => {
+      forkJoin({
+        carpetas: this.carpetasService.listarPapelera(),
+        archivos: this.archivosService.listarPapelera()
+      }).pipe(finalize(() => {
+        this.cargando = false
+        this.cdr.detectChanges()
+      })).subscribe({
+        next: ({ carpetas, archivos }) => {
           const carpetasPapelera: Elemento[] = carpetas.map(carpeta => ({
             id: carpeta._id,
             nombre: carpeta.nombre,
@@ -61,33 +129,39 @@ export class Inicio implements OnInit {
             enPapelera: true
           }))
 
-          const idsPapelera = new Set(carpetasPapelera.map(carpeta => carpeta.id))
+          const archivosPapelera: Elemento[] = archivos.map(archivo => ({
+            id: archivo._id,
+            nombre: archivo.nombre,
+            tipo: 'archivo',
+            extension: archivo.extension.replace(/^\./, '') as ExtensionArchivo,
+            carpetaPadreId: archivo.carpetaId,
+            fechaModificacion: new Date(archivo.fechaModificacion),
+            enPapelera: true
+          }))
 
-          /*
-          Actualizar las carpetas recuperadas del backend
-          y eliminar las versiones anteriores de la papelera.
-          */
-          this.elementos = [
-            ...this.elementos.filter(elemento =>
-              !idsPapelera.has(elemento.id) && !(elemento.tipo === 'carpeta' && elemento.enPapelera)),
-            ...carpetasPapelera
-          ]
-          this.cargando = false;
+          // La papelera muestra exclusivamente los elementos
+          // que devuelve el backend para esa vista.
+          this.elementos = [...carpetasPapelera, ...archivosPapelera]
+          this.cdr.detectChanges()
         },
         error: error => {
           console.error('Error al cargar la papelera:', error)
-          this.errorCarga = 'No se pudieron cargar las carpetas de la papelera.'
-          this.cargando = false
+          this.errorCarga = error.error?.mensaje ?? 'No se pudo cargar la papelera.'
         }
       })
       return
     }
 
-    // Cargar las carpetas y los archivos de la ubicación actual.
+    // Consultar únicamente el contenido de la ubicación actual.
     forkJoin({
       carpetas: this.carpetasService.listar(this.carpetaActualId),
       archivos: this.archivosService.listar(this.carpetaActualId)
-    }).subscribe({
+    }).pipe(
+      finalize(() => {
+        this.cargando = false
+        this.cdr.detectChanges()
+      })
+    ).subscribe({
       next: ({ carpetas, archivos }) => {
         const carpetasMapeadas: Elemento[] = carpetas.map(carpeta => ({
           id: carpeta._id,
@@ -102,33 +176,45 @@ export class Inicio implements OnInit {
           id: archivo._id,
           nombre: archivo.nombre,
           tipo: 'archivo',
-          extension: archivo.extension.replace('.', '') as ExtensionArchivo,
+          extension: archivo.extension.replace(/^\./, '') as ExtensionArchivo,
           carpetaPadreId: archivo.carpetaId,
           fechaModificacion: new Date(archivo.fechaModificacion),
           enPapelera: false
-        }));
+        }))
 
-        // Identificar los elementos que se recibieron del backend.
         const idsActuales = new Set([
           ...carpetasMapeadas.map(elemento => elemento.id),
           ...archivosMapeados.map(elemento => elemento.id)
         ])
 
-        // Conservar en memoria los elementos de otras ubicaciones
+        // Conservar las carpetas necesarias para la navegación
+        // y las migas de pan, pero no los archivos de ubicaciones
+        // anteriores.
+        const carpetasConservadas = this.elementos.filter(
+          elemento =>
+            elemento.tipo === 'carpeta' && !elemento.enPapelera && !idsActuales.has(elemento.id)
+        )
+
+        // Los archivos de la vista anterior se descartan.
+        // El contenido actual procede de la respuesta del backend.
         this.elementos = [
-          ...this.elementos.filter(elemento =>
-            !idsActuales.has(elemento.id) &&
-            elemento.carpetaPadreId !== this.carpetaActualId
-          ),
+          ...carpetasConservadas,
           ...carpetasMapeadas,
           ...archivosMapeados
         ]
-        this.cargando = false
+        console.log('Ubicación cargada:', this.carpetaActualId)
+        console.log('Carpetas recibidas:', carpetas.length)
+        console.log('Archivos recibidos:', archivos.length)
+        this.cdr.detectChanges()
       },
       error: error => {
-        console.error('Error al cargar los elementos:', error)
-        this.errorCarga = 'No se pudieron cargar las carpetas y los archivos.'
-        this.cargando = false
+        console.error('Error al cargar los elementos:', error);
+
+        this.errorCarga =
+          error.error?.mensaje ??
+          'No se pudieron cargar las carpetas y los archivos.';
+
+        this.cdr.detectChanges();
       }
     })
   }
@@ -168,27 +254,22 @@ export class Inicio implements OnInit {
   get elementosVisibles(): Elemento[] {
     const termino = this.busqueda.trim().toLocaleLowerCase();
 
-    return this.elementos
-      .filter(elemento => {
-        if (this.vistaActual === 'papelera') {
-          return elemento.enPapelera === true;
-        }
+    return this.elementos.filter(elemento => {
+      if (this.vistaActual === 'papelera') {
+        return elemento.enPapelera === true;
+      }
 
-        if (this.vistaActual === 'compartidos') {
-          // Pendiente de conectar con el backend de comparticiones.
-          return false;
-        }
+      if (this.vistaActual === 'compartidos') {
+        return true;
+      }
 
-        return (elemento.carpetaPadreId === this.carpetaActualId && !elemento.enPapelera)
-      })
-      .filter(elemento => this.nombreCompleto(elemento).toLocaleLowerCase().includes(termino))
-      .sort((a, b) => {
-        if (a.tipo !== b.tipo) {
-          return a.tipo === 'carpeta' ? -1 : 1;
-        }
-
-        return a.nombre.localeCompare(b.nombre);
-      });
+      return (elemento.carpetaPadreId === this.carpetaActualId && !elemento.enPapelera)
+    }).filter(elemento => this.nombreCompleto(elemento).toLocaleLowerCase().includes(termino)).sort((a, b) => {
+      if (a.tipo !== b.tipo) {
+        return a.tipo === 'carpeta' ? -1 : 1
+      }
+      return a.nombre.localeCompare(b.nombre)
+    })
   }
 
   get cantidadCarpetas(): number {
@@ -301,38 +382,55 @@ export class Inicio implements OnInit {
   }
 
   crearArchivo(extension: ExtensionArchivo): void {
-    this.menuNuevoAbierto = false;
+    this.menuNuevoAbierto = false
 
-    const nombre = window.prompt(
-      `Nombre del archivo .${extension} (sin extensión):`
-    );
+    const nombre = window.prompt(`Nombre del archivo .${extension} (sin extensión):`)
 
     if (nombre === null) {
-      return;
+      return
     }
 
-    const nombreBase = nombre.trim().replace(/\.(md|txt)$/i, '').trim();
+    const nombreBase = nombre.trim().replace(/\.(md|txt)$/i, '').trim()
 
     if (!nombreBase) {
-      window.alert('Debes ingresar un nombre válido.');
-      return;
+      window.alert('Debes ingresar un nombre válido.')
+      return
     }
 
-    const nuevoArchivo: Elemento = {
-      id: this.generarId(),
-      nombre: nombreBase,
-      tipo: 'archivo',
-      extension,
-      carpetaPadreId: this.carpetaActualId,
-      fechaModificacion: new Date()
-    };
+    const nombreCompleto = `${nombreBase}.${extension}`
 
-    if (this.existeElemento(this.nombreCompleto(nuevoArchivo))) {
-      window.alert('Ya existe un elemento con ese nombre en esta ubicación.');
-      return;
+    if (this.existeElemento(nombreCompleto)) {
+      window.alert('Ya existe un elemento con ese nombre en esta ubicación.')
+      return
     }
 
-    this.elementos = [...this.elementos, nuevoArchivo];
+    const tipoMime = extension === 'md' ? 'text/markdown' : 'text/plain'
+
+    const archivoNuevo = new File([''], nombreCompleto, { type: tipoMime })
+
+    this.archivosService.subir(archivoNuevo, this.carpetaActualId).subscribe({
+      next: (archivo) => {
+        const nuevoElemento: Elemento = {
+          id: archivo._id,
+          nombre: archivo.nombre,
+          tipo: 'archivo',
+          extension: archivo.extension.replace(/^\./, '') as ExtensionArchivo,
+          carpetaPadreId: archivo.carpetaId,
+          fechaModificacion: new Date(archivo.fechaModificacion),
+          enPapelera: false
+        }
+
+        this.elementos = [
+          ...this.elementos.filter(elemento => elemento.id !== nuevoElemento.id),
+          nuevoElemento
+        ]
+        window.alert('Archivo creado correctamente.')
+      },
+      error: (error) => {
+        console.error('Error al crear el archivo:', error)
+        window.alert(error.error?.mensaje ?? 'No se pudo crear el archivo.')
+      }
+    })
   }
 
   cambiarNombre(elemento: Elemento): void {
@@ -427,23 +525,56 @@ export class Inicio implements OnInit {
   }
 
   compartirElemento(elemento: Elemento): void {
-    this.cerrarMenuElemento();
+    this.cerrarMenuElemento()
+    this.elementoCompartir = elemento
+    this.correoCompartir = ''
+    this.permisoCompartir = 'lectura'
+    this.compartiendo = false
+  }
 
-    const correo = window.prompt(`Correo del usuario con quien deseas compartir "${elemento.nombre}":`)
-
-    if (correo === null) {
-      return;
+  cerrarFormularioCompartir(): void {
+    if (this.compartiendo) {
+      return
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim())) {
-      window.alert('Ingresa una dirección de correo válida.');
-      return;
+    this.elementoCompartir = null;
+    this.correoCompartir = '';
+    this.permisoCompartir = 'lectura';
+  }
+
+  confirmarComparticion(): void {
+    if (!this.elementoCompartir || this.compartiendo) {
+      return
     }
 
-    window.alert(
-      'La interfaz está preparada, pero el uso compartido real requiere ' +
-      'conectar esta acción con el endpoint de comparticiones del backend.'
-    )
+    const correo = this.correoCompartir.trim().toLowerCase()
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+      window.alert('Ingresa una dirección de correo válida.')
+      return
+    }
+
+    this.compartiendo = true
+    this.comparticionesService.compartir({
+      correo,
+      tipoRecurso: this.elementoCompartir.tipo,
+      recursoId: this.elementoCompartir.id,
+      tipoPermiso: this.permisoCompartir
+    }).subscribe({
+      next: (respuesta) => {
+        window.alert(respuesta.mensaje)
+        this.elementoCompartir = null
+        this.correoCompartir = ''
+        this.permisoCompartir = 'lectura'
+        this.compartiendo = false
+      },
+      error: (error) => {
+        console.error('Error al compartir el recurso:', error)
+        const mensaje = error.error?.mensaje ?? 'No se pudo compartir el recurso. Inténtalo nuevamente.'
+        window.alert(mensaje)
+        this.compartiendo = false
+      }
+    })
   }
 
   moverElemento(elemento: Elemento): void {
@@ -624,44 +755,43 @@ export class Inicio implements OnInit {
   }
 
   restablecerElemento(elemento: Elemento): void {
-    if (elemento.tipo !== 'carpeta') {
-      return
-    }
-    this.carpetasService.restaurar(elemento.id).subscribe({
+    const operacion = elemento.tipo === 'carpeta'
+      ? this.carpetasService.restaurar(elemento.id)
+      : this.archivosService.restaurar(elemento.id)
+
+    operacion.subscribe({
       next: (respuesta) => {
         console.log(respuesta.mensaje)
         this.menuElementoId = null
         this.cargarElementos()
       },
       error: (error) => {
-        console.error('Error al restaurar la carpeta:', error)
-        alert(error.error?.mensaje ?? 'No se pudo restaurar la carpeta.')
+        console.error('Error al restaurar el elemento:', error)
+        alert(error.error?.mensaje ?? 'No se pudo restaurar el elemento.')
       }
     })
   }
 
   eliminarDefinitivamente(elemento: Elemento): void {
-    if (elemento.tipo !== 'carpeta') {
-      return
-    }
-
-    const confirmar = window.confirm(
-      `¿Eliminar definitivamente la carpeta "${elemento.nombre}" y todo su contenido? Esta acción no se puede deshacer.`
-    )
+    const confirmar = window.confirm(`¿Eliminar definitivamente "${elemento.nombre}"? Esta acción no se puede deshacer.`)
 
     if (!confirmar) {
       return
     }
 
-    this.carpetasService.eliminarDefinitivamente(elemento.id).subscribe({
+    const operacion = elemento.tipo === 'carpeta'
+      ? this.carpetasService.eliminarDefinitivamente(elemento.id)
+      : this.archivosService.eliminarDefinitivamente(elemento.id)
+
+    operacion.subscribe({
       next: (respuesta) => {
         console.log(respuesta.mensaje)
         this.menuElementoId = null
         this.cargarElementos()
       },
       error: (error) => {
-        console.error('Error al eliminar definitivamente la carpeta:', error)
-        alert(error.error?.mensaje ?? 'No se pudo eliminar definitivamente la carpeta.')
+        console.error('Error al eliminar definitivamente el elemento:', error);
+        alert(error.error?.mensaje ?? 'No se pudo eliminar definitivamente el elemento.')
       }
     })
   }
@@ -777,11 +907,12 @@ export class Inicio implements OnInit {
   }
 
   irACompartidos(): void {
-    this.vistaActual = 'compartidos';
-    this.carpetaActualId = null;
-    this.busqueda = '';
-    this.menuElementoId = null;
-    this.menuNuevoAbierto = false;
+    this.vistaActual = 'compartidos'
+    this.carpetaActualId = null
+    this.busqueda = ''
+    this.menuElementoId = null
+    this.menuNuevoAbierto = false
+    this.cargarElementos()
   }
 
   irAPapelera(): void {
@@ -794,10 +925,11 @@ export class Inicio implements OnInit {
   }
 
   irARaiz(): void {
-    this.vistaActual = 'mis-carpetas';
-    this.carpetaActualId = null;
-    this.busqueda = '';
-    this.menuNuevoAbierto = false;
-    this.menuElementoId = null;
+    this.vistaActual = 'mis-carpetas'
+    this.carpetaActualId = null
+    this.busqueda = ''
+    this.menuNuevoAbierto = false
+    this.menuElementoId = null
+    this.cargarElementos()
   }
 }

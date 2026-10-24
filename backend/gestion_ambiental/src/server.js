@@ -8,6 +8,7 @@ import usuarioRoutes from './routes/UsuarioRoutes.js'
 import carpetaRoutes from './routes/CarpetaRoutes.js'
 import authRoutes from './routes/AuthRoutes.js'
 import archivoRoutes from './routes/ArchivoRoutes.js'
+import comparticionRoutes from './routes/ComparticionRoutes.js'
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,11 +27,12 @@ app.get('/', (req, res) => {
     });
 });
 
-// Rutas de la API.
-app.use('/api/usuarios', usuarioRoutes);
-app.use('/api/carpetas', carpetaRoutes);
-app.use('/api/auth', authRoutes);
+// Rutas de la API
+app.use('/api/usuarios', usuarioRoutes)
+app.use('/api/carpetas', carpetaRoutes)
+app.use('/api/auth', authRoutes)
 app.use('/api/archivos', archivoRoutes)
+app.use('/api/comparticiones', comparticionRoutes)
 
 // Respuesta para rutas inexistentes.
 app.use((req, res) => {

@@ -1,5 +1,66 @@
 <div class="gestor">
 
+  @if (elementoCompartir) {
+  <div class="modal-compartir-fondo" (click)="cerrarFormularioCompartir()">
+    <section class="modal-compartir" role="dialog" aria-modal="true" aria-labelledby="titulo-compartir"
+      (click)="$event.stopPropagation()">
+      <header class="modal-compartir-cabecera">
+        <div>
+          <h2 id="titulo-compartir">Compartir recurso</h2>
+          <p>Concede acceso a otro usuario.</p>
+        </div>
+
+        <button type="button" class="modal-compartir-cerrar" aria-label="Cerrar" [disabled]="compartiendo"
+          (click)="cerrarFormularioCompartir()">
+          &times;
+        </button>
+      </header>
+
+      <div class="recurso-compartir">
+        <span class="material-symbols-outlined">
+          {{ elementoCompartir.tipo === 'carpeta' ? 'folder' : 'description' }}
+        </span>
+
+        <div>
+          <strong>{{ elementoCompartir.nombre }}</strong>
+          <small>
+            {{ elementoCompartir.tipo === 'carpeta' ? 'Carpeta' : 'Archivo' }}
+          </small>
+        </div>
+      </div>
+
+      <form class="formulario-compartir" (ngSubmit)="confirmarComparticion()">
+        <label for="correoCompartir">Correo del usuario</label>
+
+        <input id="correoCompartir" name="correoCompartir" type="email" [(ngModel)]="correoCompartir"
+          placeholder="usuario@ejemplo.com" autocomplete="email" required maxlength="254" [disabled]="compartiendo" />
+
+        <label for="permisoCompartir">Permiso concedido</label>
+
+        <select id="permisoCompartir" name="permisoCompartir" [(ngModel)]="permisoCompartir" [disabled]="compartiendo">
+          <option value="lectura">Lectura — Solo consultar</option>
+          <option value="edicion">Edición — Consultar y modificar</option>
+        </select>
+
+        <p class="ayuda-compartir">
+          El destinatario debe tener una cuenta activa en el sistema.
+        </p>
+
+        <footer class="acciones-compartir">
+          <button type="button" class="btn-cancelar-compartir" [disabled]="compartiendo"
+            (click)="cerrarFormularioCompartir()">
+            Cancelar
+          </button>
+
+          <button type="submit" class="btn-confirmar-compartir" [disabled]="compartiendo || !correoCompartir.trim()">
+            {{ compartiendo ? 'Compartiendo...' : 'Compartir' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+  }
+
   <header class="barra-superior">
     <div class="marca">
       <span class="material-symbols-outlined logo-icono">folder_copy</span>
@@ -174,7 +235,19 @@
           <span class="material-symbols-outlined icono-vista">grid_view</span>
         </div>
 
-        @if (elementosVisibles.length > 0) {
+        @if (cargando) {
+        <div class="estado-vacio">
+          <p>Cargando carpetas y archivos...</p>
+        </div>
+        } @else if (errorCarga) {
+        <div class="estado-vacio">
+          <h3>No se pudo cargar el contenido</h3>
+          <p>{{ errorCarga }}</p>
+          <button type="button" class="btn-nuevo" (click)="cargarElementos()">
+            Reintentar
+          </button>
+        </div>
+        } @else if (elementosVisibles.length > 0) {
         <div class="cuadricula-carpetas">
           @for (elemento of elementosVisibles; track elemento.id) {
 
@@ -206,14 +279,32 @@
                   }
                 </span>
 
+                @if (vistaActual !== 'compartidos') {
                 <span class="tipo-elemento">
                   {{ elemento.tipo === 'carpeta'
                   ? 'Carpeta'
                   : 'Documento ' + elemento.extension?.toUpperCase() }}
                 </span>
+                }
+
               </span>
             </button>
 
+            <!-- Información del recurso compartido -->
+            @if (vistaActual === 'compartidos') {
+            <div class="detalle-compartido">
+              <span>
+                Compartido por: {{ elemento.compartidoPor }}
+              </span>
+
+              <span>
+                Permiso:
+                {{ elemento.permisoCompartido === 'edicion' ? 'Edición' : 'Lectura' }}
+              </span>
+
+              <small>{{ elemento.correoCompartidor }}</small>
+            </div>
+            }
 
             <!-- Botón tres puntos -->
             <div class="contenedor-opciones">
@@ -317,6 +408,7 @@
           }
         </div>
         }
+
       </section>
     </main>
   </div>

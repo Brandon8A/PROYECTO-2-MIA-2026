@@ -58,6 +58,19 @@ export class ArchivosService {
   }
 
   enviarAPapelera(id: string): Observable<unknown> {
-    return this.http.delete(`${this.apiUrl}/${id}`, this.obtenerOpciones());
+    return this.http.delete(`${this.apiUrl}/${id}`, this.obtenerOpciones())
+  }
+
+  listarPapelera(): Observable<Archivo[]> {
+    return this.http.get<RespuestaArchivos>(`${this.apiUrl}/papelera`, this.obtenerOpciones())
+      .pipe(map(respuesta => respuesta.archivos))
+  }
+
+  restaurar(id: string): Observable<{ mensaje: string }> {
+    return this.http.patch<{ mensaje: string }>(`${this.apiUrl}/${id}/restaurar`, {},this.obtenerOpciones())
+  }
+
+  eliminarDefinitivamente(id: string): Observable<{ mensaje: string }> {
+    return this.http.delete<{ mensaje: string }>(`${this.apiUrl}/${id}/permanente`, this.obtenerOpciones())
   }
 }

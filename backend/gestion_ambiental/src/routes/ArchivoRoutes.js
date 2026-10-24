@@ -1,7 +1,7 @@
 import express from 'express'
 import multer from 'multer'
 
-import { verificarToken } from '../middlewares/AuthMiddleware.js'
+import { verificarToken } from '../middlewares/AuthMiddleware.js';
 
 import {
     cargarArchivo,
@@ -9,7 +9,10 @@ import {
     obtenerArchivo,
     descargarArchivo,
     actualizarArchivo,
-    eliminarArchivo
+    eliminarArchivo,
+    listarArchivosPapelera,
+    restaurarArchivo,
+    eliminarArchivoPermanente
 } from '../controllers/ArchivoController.js'
 
 const router = express.Router()
@@ -23,16 +26,16 @@ const upload = multer({
         files: 1
     },
     fileFilter: (req, file, callback) => {
-        const nombre = file.originalname.toLowerCase();
+        const nombre = file.originalname.toLowerCase()
 
         if (!nombre.endsWith('.txt') && !nombre.endsWith('.md')) {
             return callback(new Error('Solo se permiten archivos .txt y .md.'))
         }
-        callback(null, true);
+        callback(null, true)
     }
 })
 
-// Todas las rutas de archivos requieren un JWT valido
+// Todas las rutas requieren autenticación JWT.
 router.use(verificarToken)
 
 // POST /api/archivos
@@ -40,32 +43,43 @@ router.post('/', (req, res, next) => {
     upload.single('archivo')(req, res, (error) => {
         if (error instanceof multer.MulterError) {
             const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400
-
             return res.status(status).json({
-                mensaje: error.code === 'LIMIT_FILE_SIZE' ? 'El archivo supera el límite de 10 MB.' : 'No se pudo recibir el archivo.',
+                mensaje: error.code === 'LIMIT_FILE_SIZE'
+                    ? 'El archivo supera el límite de 10 MB.'
+                    : 'No se pudo recibir el archivo.',
                 detalle: error.message
             })
         }
+
         if (error) {
-            return res.status(400).json({mensaje: error.message})
+            return res.status(400).json({ mensaje: error.message })
         }
-        next();
+
+        next()
     })
 }, cargarArchivo)
 
-// GET /api/archivos
-router.get('/', listarArchivos);
+router.get('/papelera', listarArchivosPapelera)
 
-// GET /api/archivos/:id/descargar
-router.get('/:id/descargar', descargarArchivo);
+// Listar archivos activos
+router.get('/', listarArchivos)
 
-// GET /api/archivos/:id
-router.get('/:id', obtenerArchivo);
+// Descargar contenido
+router.get('/:id/descargar', descargarArchivo)
 
-// PUT /api/archivos/:id
-router.put('/:id', actualizarArchivo);
+// Restaurar un archivo de la papelera
+router.patch('/:id/restaurar', restaurarArchivo)
 
-// DELETE /api/archivos/:id
-router.delete('/:id', eliminarArchivo);
+// Eliminar permanentemente un archivo de la papelera
+router.delete('/:id/permanente', eliminarArchivoPermanente)
+
+// Consultar un archivo
+router.get('/:id', obtenerArchivo)
+
+// Actualizar nombre o carpeta
+router.put('/:id', actualizarArchivo)
+
+// Enviar a la papelera
+router.delete('/:id', eliminarArchivo)
 
 export default router

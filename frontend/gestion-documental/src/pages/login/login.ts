@@ -22,7 +22,7 @@ export class Login {
   mensajeError = ''
 
   formulario = this.formBuilder.nonNullable.group({
-    correo: ['', Validators.required, Validators.email],
+    correo: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required]
   })
 
@@ -31,8 +31,8 @@ export class Login {
 
     //Condicional para saber si el formulario es valido
     if(this.formulario.invalid){
-      this.formulario.markAllAsTouched();
-      return;
+      this.formulario.markAllAsTouched()
+      return
     }
 
     this.cargando = true;

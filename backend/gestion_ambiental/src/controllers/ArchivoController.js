@@ -482,11 +482,145 @@ const eliminarArchivo = async (req, res) => {
     }
 }
 
+const listarArchivosPapelera = async (req, res) => {
+    try {
+        const propietarioId = obtenerPropietarioId(req)
+        const archivos = await Archivo.find({
+            propietarioId,
+            estado: 'papelera'
+        })
+            .select('-gridFsId')
+            .sort({ fechaEliminacion: -1 })
+            .lean();
+
+        return res.status(200).json({ total: archivos.length, archivos })
+    } catch (error) {
+        console.error('Error al listar archivos de la papelera:', error)
+        return res.status(500).json({ mensaje: 'No se pudieron consultar los archivos de la papelera.' })
+    }
+}
+
+const restaurarArchivo = async (req, res) => {
+    try {
+        const { id } = req.params
+        const usuarioId = obtenerPropietarioId(req)
+
+        if (!esObjectIdValido(id)) {
+            return res.status(400).json({ mensaje: 'El identificador del archivo no es válido.' })
+        }
+
+        const archivo = await Archivo.findOne({
+            _id: id,
+            propietarioId: usuarioId,
+            estado: 'papelera'
+        })
+
+        if (!archivo) {
+            return res.status(404).json({ mensaje: 'El archivo no existe en la papelera.' })
+        }
+
+        // Si estaba dentro de una carpeta, esta debe seguir activa
+        if (archivo.carpetaId !== null) {
+            const carpeta = await Carpeta.findOne({
+                _id: archivo.carpetaId,
+                propietarioId: usuarioId,
+                estado: 'activa'
+            }).select('_id');
+
+            if (!carpeta) {
+                return res.status(409).json({ mensaje: 'Primero debes restaurar la carpeta que contiene el archivo.' })
+            }
+        }
+
+        archivo.estado = 'activo'
+        archivo.fechaEliminacion = null
+        archivo.fechaModificacion = new Date()
+
+        await archivo.save()
+        await actualizarAlmacenamiento(usuarioId)
+        await registrarActividad(
+            usuarioId,
+            'restaurar',
+            'archivo',
+            archivo._id,
+            `Se restauró el archivo ${archivo.nombre}${archivo.extension}.`
+        )
+
+        return res.status(200).json({ mensaje: 'Archivo restaurado correctamente.', archivo })
+    } catch (error) {
+        console.error('Error al restaurar archivo:', error)
+        return res.status(500).json({ mensaje: 'No se pudo restaurar el archivo.' })
+    }
+}
+
+const eliminarArchivoPermanente = async (req, res) => {
+    try {
+        const { id } = req.params
+        const usuarioId = obtenerPropietarioId(req)
+
+        if (!esObjectIdValido(id)) {
+            return res.status(400).json({ mensaje: 'El identificador del archivo no es válido.' })
+        }
+
+        const archivo = await Archivo.findOne({
+            _id: id,
+            propietarioId: usuarioId,
+            estado: 'papelera'
+        })
+
+        if (!archivo) {
+            return res.status(404).json({ mensaje: 'El archivo no existe en la papelera.' })
+        }
+
+        // Eliminar primero el contenido almacenado en GridFS
+        try {
+            await obtenerBucket().delete(archivo.gridFsId)
+        } catch (error) {
+            // MongoDB puede devolver NamespaceNotFound (26) si falta la colección de archivos de GridFS
+            if (error.code !== 26 && error.codeName !== 'FileNotFound') {
+                throw error
+            }
+        }
+
+        // Eliminar las comparticiones asociadas al archivo
+        await Comparticion.deleteMany({
+            propietarioId: archivo.propietarioId,
+            tipoRecurso: 'archivo',
+            archivoId: archivo._id
+        })
+
+        // Eliminar los metadatos
+        await Archivo.deleteOne({
+            _id: archivo._id,
+            propietarioId: usuarioId,
+            estado: 'papelera'
+        })
+
+        await actualizarAlmacenamiento(usuarioId)
+        await registrarActividad(
+            usuarioId,
+            'eliminar_permanente',
+            'archivo',
+            archivo._id,
+            `Se eliminó definitivamente el archivo ${archivo.nombre}${archivo.extension}.`
+        )
+
+        return res.status(200).json({ mensaje: 'Archivo eliminado definitivamente.', archivoId: id })
+    } catch (error) {
+        console.error('Error al eliminar definitivamente el archivo:', error)
+
+        return res.status(500).json({ mensaje: 'No se pudo eliminar definitivamente el archivo.' })
+    }
+}
+
 export {
     cargarArchivo,
     listarArchivos,
     obtenerArchivo,
     descargarArchivo,
     actualizarArchivo,
-    eliminarArchivo
+    eliminarArchivo,
+    listarArchivosPapelera,
+    restaurarArchivo,
+    eliminarArchivoPermanente
 }
