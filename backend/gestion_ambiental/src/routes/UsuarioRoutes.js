@@ -1,37 +1,39 @@
+import express from 'express'
 
-import express from 'express';
-import { AutorizarRoles } from '../middlewares/AutorizarRoles.js';
-import { verificarToken } from '../middlewares/AuthMiddleware.js';
+import { verificarToken } from '../middlewares/AuthMiddleware.js'
+import { AutorizarRoles } from '../middlewares/AutorizarRoles.js'
 
 import {
-  crearUsuario,
-  listarUsuarios,
-  obtenerUsuario,
-  actualizarUsuario,
-  eliminarUsuario
-} from '../controllers/UsuarioController.js';
+    crearUsuario,
+    listarUsuarios,
+    obtenerUsuario,
+    actualizarUsuario,
+    cambiarEstadoUsuario,
+    eliminarUsuario
+} from '../controllers/UsuarioController.js'
 
-const router = express.Router();
+const router = express.Router()
+
+// Todas las operaciones de gestión requieren JWT y rol administrador.
+router.use(verificarToken);
+router.use(AutorizarRoles('admin'))
 
 // POST /api/usuarios
-// Registro de usuarios
-router.post('/', crearUsuario);
-
-// Todas las siguientes rutas requieren autenticación
-// y el rol de administrador.
-router.use(verificarToken);
-router.use(AutorizarRoles('admin'));
+router.post('/', crearUsuario)
 
 // GET /api/usuarios
-router.get('/', listarUsuarios);
+router.get('/', listarUsuarios)
 
 // GET /api/usuarios/:id
-router.get('/:id', obtenerUsuario);
+router.get('/:id', obtenerUsuario)
 
 // PUT /api/usuarios/:id
-router.put('/:id', actualizarUsuario);
+router.put('/:id', actualizarUsuario)
+
+// PATCH /api/usuarios/:id/estado
+router.patch('/:id/estado', cambiarEstadoUsuario)
 
 // DELETE /api/usuarios/:id
-router.delete('/:id', eliminarUsuario);
+router.delete('/:id', eliminarUsuario)
 
-export default router;
+export default router

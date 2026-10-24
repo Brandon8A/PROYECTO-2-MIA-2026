@@ -1,3 +1,5 @@
+import { AlmacenamientoUsuario } from "./alamcenamiento-usuario.model";
+
 export interface UsuarioAdmin {
   _id: string;
   nombres: string;
@@ -5,5 +7,6 @@ export interface UsuarioAdmin {
   correo: string;
   rol: 'admin' | 'usuario';
   estado: 'activo' | 'inactivo';
+  almacenamiento: AlmacenamientoUsuario;
   fechaCreacion: string;
 }

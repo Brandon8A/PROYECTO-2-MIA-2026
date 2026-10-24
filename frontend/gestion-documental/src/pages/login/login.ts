@@ -30,7 +30,7 @@ export class Login {
     this.mensajeError = '';
 
     //Condicional para saber si el formulario es valido
-    if(this.formulario.invalid){
+    if (this.formulario.invalid) {
       this.formulario.markAllAsTouched()
       return
     }
@@ -38,20 +38,29 @@ export class Login {
     this.cargando = true;
 
     this.authService.iniciarSesion(this.formulario.getRawValue()).subscribe({
+
       next: (respuesta) => {
-        this.cargando = false;
-
+        this.cargando = false
         console.log('Inicio de sesión correcto', respuesta.usuario.correo)
+        console.log('Rol del usuario:', respuesta.usuario.rol)
 
-        // obtener URL de retorno desde los parametros de consulta
+        // Obtener URL de retorno desde los parámetros de consulta
         const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl')
 
-        // validar que la URL de retorno sea relativa para evitar redirecciones
-        const destino = returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : '/inicio'
+        // Si existe una URL de retorno válida, conservarla
+        const destinoRetorno = returnUrl && returnUrl.startsWith('/') &&
+            !returnUrl.startsWith('//')
+            ? returnUrl
+            : null;
 
-        //redirigir al usuario a la URL de retorno o a la pagina de inicio
-        this.router.navigateByUrl(destino)
+        // Redirigir según el rol del usuario.
+        const destino = destinoRetorno ?? (respuesta.usuario.rol === 'admin'
+            ? '/admin/usuarios'
+            : '/inicio')
+
+        this.router.navigateByUrl(destino);
       },
+
       error: (error: HttpErrorResponse) => {
         this.cargando = false;
 

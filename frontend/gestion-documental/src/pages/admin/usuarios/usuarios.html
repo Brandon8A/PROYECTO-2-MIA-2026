@@ -1,0 +1,292 @@
+<main class="admin-pagina">
+  <header class="encabezado">
+    <div>
+      <span class="subtitulo">ADMINISTRACIÓN</span>
+      <h1>Gestión de usuarios</h1>
+      <p>Administra las cuentas, los permisos y el almacenamiento.</p>
+      <button type="button" class="boton-cerrar-sesion" (click)="cerrarSesion()">
+        <span class="material-symbols-outlined">logout</span>
+        <span>Cerrar sesión</span>
+      </button>
+    </div>
+
+    <button class="boton-principal" type="button" (click)="abrirCrear()">
+      <span class="material-symbols-outlined">person_add</span>
+      Crear usuario
+    </button>
+  </header>
+
+  @if (mensaje) {
+  <div class="alerta alerta-exito" role="status">
+    <span class="material-symbols-outlined">check_circle</span>
+    {{ mensaje }}
+    <button type="button" aria-label="Cerrar mensaje" (click)="mensaje = ''">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+  }
+
+  @if (error && !modalAbierto) {
+  <div class="alerta alerta-error" role="alert">
+    <span class="material-symbols-outlined">error</span>
+    {{ error }}
+    <button type="button" aria-label="Cerrar error" (click)="error = ''">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+  }
+
+  <section class="indicadores">
+    <article class="indicador">
+      <div class="indicador-icono icono-total">
+        <span class="material-symbols-outlined">groups</span>
+      </div>
+      <div>
+        <span class="indicador-etiqueta">Total de usuarios</span>
+        <strong>{{ usuarios.length }}</strong>
+      </div>
+    </article>
+
+    <article class="indicador">
+      <div class="indicador-icono icono-activo">
+        <span class="material-symbols-outlined">person_check</span>
+      </div>
+      <div>
+        <span class="indicador-etiqueta">Usuarios activos</span>
+        <strong>{{ totalActivos }}</strong>
+      </div>
+    </article>
+
+    <article class="indicador">
+      <div class="indicador-icono icono-inactivo">
+        <span class="material-symbols-outlined">person_off</span>
+      </div>
+      <div>
+        <span class="indicador-etiqueta">Usuarios inactivos</span>
+        <strong>{{ totalInactivos }}</strong>
+      </div>
+    </article>
+  </section>
+
+  <section class="panel-usuarios">
+    <div class="panel-encabezado">
+      <div>
+        <h2>Usuarios registrados</h2>
+        <p>Consulta y administra las cuentas del sistema.</p>
+      </div>
+
+      <button type="button" class="boton-secundario" (click)="cargarUsuarios()" [disabled]="cargando">
+        <span class="material-symbols-outlined">refresh</span>
+        Actualizar
+      </button>
+    </div>
+
+    <div class="barra-herramientas">
+      <label class="buscador-usuarios">
+        <span class="material-symbols-outlined">search</span>
+        <input type="search" placeholder="Buscar por nombre, correo, rol o estado..." aria-label="Buscar usuarios"
+          [(ngModel)]="busqueda">
+      </label>
+
+      <span class="contador-resultados">
+        {{ usuariosFiltrados.length }}
+        {{ usuariosFiltrados.length === 1 ? 'usuario' : 'usuarios' }}
+      </span>
+    </div>
+
+    @if (cargando) {
+    <div class="estado-vacio">
+      <span class="material-symbols-outlined icono-cargando">progress_activity</span>
+      <p>Cargando usuarios...</p>
+    </div>
+    } @else if (usuariosFiltrados.length === 0) {
+    <div class="estado-vacio">
+      <span class="material-symbols-outlined">person_search</span>
+      <h3>No se encontraron usuarios</h3>
+      <p>
+        {{ busqueda
+        ? 'Prueba con otro término de búsqueda.'
+        : 'Todavía no hay usuarios registrados.' }}
+      </p>
+    </div>
+    } @else {
+    <div class="tabla-contenedor">
+      <table>
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Almacenamiento</th>
+            <th>Fecha de creación</th>
+            <th class="columna-acciones">Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (usuario of usuariosFiltrados; track usuario._id) {
+          <tr>
+            <td>
+              <div class="usuario-celda">
+                <div class="avatar">
+                  {{ usuario.nombres?.charAt(0)?.toUpperCase() ?? '?' }}{{ usuario.apellidos?.charAt(0)?.toUpperCase()
+                  ?? '' }}
+                </div>
+
+                <div class="datos-usuario">
+                  <strong>{{ usuario.nombres }} {{ usuario.apellidos }}</strong>
+                  <span>{{ usuario.correo }}</span>
+                </div>
+              </div>
+            </td>
+
+            <td>
+              <span class="etiqueta-rol" [class.rol-admin]="usuario.rol === 'admin'">
+                {{ usuario.rol === 'admin' ? 'Administrador' : 'Usuario' }}
+              </span>
+            </td>
+
+            <td>
+              <span class="etiqueta-estado" [class.estado-activo]="usuario.estado === 'activo'"
+                [class.estado-inactivo]="usuario.estado === 'inactivo'">
+                <span class="punto-estado"></span>
+                {{ usuario.estado === 'activo' ? 'Activo' : 'Inactivo' }}
+              </span>
+            </td>
+
+            <td>
+              <div class="datos-almacenamiento">
+                <strong>
+                  {{ formatearAlmacenamiento(usuario.almacenamiento.utilizado) }}
+                </strong>
+                <span>
+                  de {{ formatearAlmacenamiento(usuario.almacenamiento.capacidad) }}
+                </span>
+              </div>
+            </td>
+
+            <td class="fecha">
+              {{ formatearFecha(usuario.fechaCreacion) }}
+            </td>
+
+            <td>
+              <div class="acciones">
+                <button type="button" class="boton-icono" title="Editar usuario"
+                  [attr.aria-label]="'Editar a ' + usuario.nombres" (click)="abrirEditar(usuario)">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+
+                <button type="button" class="boton-icono" [class.boton-activar]="usuario.estado === 'inactivo'"
+                  [class.boton-inactivar]="usuario.estado === 'activo'"
+                  [title]="usuario.estado === 'activo' ? 'Inactivar usuario' : 'Activar usuario'"
+                  [attr.aria-label]="usuario.estado === 'activo' ? 'Inactivar usuario' : 'Activar usuario'"
+                  (click)="cambiarEstado(usuario)">
+                  <span class="material-symbols-outlined">
+                    {{ usuario.estado === 'activo' ? 'person_off' : 'person_check' }}
+                  </span>
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </section>
+</main>
+
+@if (modalAbierto) {
+<div class="fondo-modal" (click)="cerrarModal()">
+  <section class="modal-usuario" role="dialog" aria-modal="true" aria-labelledby="titulo-modal"
+    (click)="$event.stopPropagation()">
+
+    <header class="modal-encabezado">
+      <div>
+        <h2 id="titulo-modal">
+          {{ modoFormulario === 'crear' ? 'Crear usuario' : 'Editar usuario' }}
+        </h2>
+        <p>
+          {{ modoFormulario === 'crear'
+          ? 'Completa los datos de la nueva cuenta.'
+          : 'Modifica la información de la cuenta seleccionada.' }}
+        </p>
+      </div>
+
+      <button type="button" class="boton-icono" aria-label="Cerrar formulario" [disabled]="guardando"
+        (click)="cerrarModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </header>
+
+    @if (error && modalAbierto) {
+    <div class="alerta alerta-error" role="alert">{{ error }}</div>
+    }
+
+    <form class="formulario-usuario" (ngSubmit)="guardarUsuario()">
+      <div class="campo">
+        <label for="nombres">Nombres</label>
+        <input id="nombres" name="nombres" type="text" [(ngModel)]="formulario.nombres" autocomplete="given-name"
+          required>
+      </div>
+
+      <div class="campo">
+        <label for="apellidos">Apellidos</label>
+        <input id="apellidos" name="apellidos" type="text" [(ngModel)]="formulario.apellidos" autocomplete="family-name"
+          required>
+      </div>
+
+      <div class="campo campo-completo">
+        <label for="correo">Correo electrónico</label>
+        <input id="correo" name="correo" type="email" [(ngModel)]="formulario.correo" autocomplete="email" required>
+      </div>
+
+      <div class="campo campo-completo">
+        <label for="password">
+          Contraseña
+          @if (modoFormulario === 'editar') {
+          <span class="texto-opcional">(dejar en blanco para conservarla)</span>
+          }
+        </label>
+        <input id="password" name="password" type="password" [(ngModel)]="formulario.password"
+          [required]="modoFormulario === 'crear'" [autocomplete]="modoFormulario === 'crear' ? 'new-password' : 'off'">
+      </div>
+
+      <div class="campo">
+        <label for="rol">Rol</label>
+        <select id="rol" name="rol" [(ngModel)]="formulario.rol" required>
+          <option value="usuario">Usuario</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label for="estado">Estado</label>
+        <select id="estado" name="estado" [(ngModel)]="formulario.estado" required>
+          <option value="activo">Activo</option>
+          <option value="inactivo">Inactivo</option>
+        </select>
+      </div>
+
+      <div class="campo campo-completo">
+        <label for="capacidad">Capacidad de almacenamiento (GiB)</label>
+        <input id="capacidad" name="capacidad" type="number" min="0" step="0.5" [(ngModel)]="formulario.capacidadGiB"
+          required>
+      </div>
+
+      <footer class="modal-acciones">
+        <button type="button" class="boton-secundario" [disabled]="guardando" (click)="cerrarModal()">
+          Cancelar
+        </button>
+
+        <button type="submit" class="boton-principal" [disabled]="guardando">
+          <span class="material-symbols-outlined">
+            {{ guardando ? 'progress_activity' : 'save' }}
+          </span>
+          {{ guardando ? 'Guardando...' : 'Guardar usuario' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>
+}

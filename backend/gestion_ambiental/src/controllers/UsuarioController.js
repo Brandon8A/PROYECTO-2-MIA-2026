@@ -1,249 +1,109 @@
-import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-import Usuario from '../models/Usuario.js';
+import {
+    crearUsuario as crearUsuarioServicio,
+    listarUsuarios as listarUsuariosServicio,
+    obtenerUsuario as obtenerUsuarioServicio,
+    actualizarUsuario as actualizarUsuarioServicio,
+    cambiarEstadoUsuario as cambiarEstadoUsuarioServicio,
+    eliminarUsuario as eliminarUsuarioServicio,
+    ErrorServicio
+} from '../services/UsuarioService.js';
 
-const CAMPOS_EDITABLES = [
-    'nombres',
-    'apellidos',
-    'correo',
-    'rol',
-    'estado',
-    'almacenamiento'
-];
+const responderError = (res, error, operacion) => {
+    if (error instanceof ErrorServicio) {
+        return res.status(error.codigo).json({ mensaje: error.message, ...(error.detalles ? error.detalles : {}) })
+    }
 
-// Elimina información privada antes de responder al cliente.
-const usuarioPublico = (usuario) => {
-    const datos = usuario.toObject();
-    delete datos.passwordHash;
-    return datos;
-};
+    if (error.code === 11000) {
+        return res.status(409).json({ mensaje: 'Ya existe un usuario registrado con ese correo.' })
+    }
 
-// Comprueba que el ID tenga un formato válido.
-const idValido = (id) => mongoose.isValidObjectId(id);
+    if (error.name === 'ValidationError') {
+        return res.status(400).json({
+            mensaje: 'Los datos del usuario no son válidos.',
+            errores: Object.values(error.errors).map(e => e.message)
+        })
+    }
 
-// CREATE: registrar un usuario.
+    if (error.name === 'MongoServerError' && error.code === 121) {
+        return res.status(400).json({ mensaje: 'El documento no cumple las validaciones de MongoDB.' })
+    }
+
+    console.error(`Error al ${operacion}:`, error)
+
+    return res.status(500).json({ mensaje: `Error interno al ${operacion}.` })
+}
+
+// POST /api/usuarios
 const crearUsuario = async (req, res) => {
     try {
-        const {
-            nombres,
-            apellidos,
-            correo,
-            password,
-            rol,
-            estado,
-            almacenamiento
-        } = req.body;
-
-        if (
-            !nombres?.trim() ||
-            !apellidos?.trim() ||
-            !correo?.trim() ||
-            typeof password !== 'string' ||
-            password.length === 0 ||
-            !almacenamiento
-        ) {
-            return res.status(400).json({
-                mensaje: 'Se deben proporcionar nombres, apellidos, correo, password y almacenamiento.'
-            });
-        }
-
-        const passwordHash = await bcrypt.hash(password, 12);
-
-        const usuario = await Usuario.create({
-            nombres,
-            apellidos,
-            correo: correo.trim().toLowerCase(),
-            passwordHash,
-            rol: rol ?? 'usuario',
-            estado: estado ?? 'activo',
-            almacenamiento,
-            fechaCreacion: new Date()
-        });
-
-        return res.status(201).json({
-            mensaje: 'Usuario creado correctamente.',
-            usuario: usuarioPublico(usuario)
-        });
+        const usuario = await crearUsuarioServicio(req.body)
+        return res.status(201).json({ mensaje: 'Usuario creado correctamente.', usuario })
     } catch (error) {
-        if (error.code === 11000) {
-            return res.status(409).json({ mensaje: 'Ya existe un usuario registrado con ese correo.' });
-        }
-
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({
-                mensaje: 'Los datos del usuario no son válidos.',
-                errores: Object.values(error.errors).map((e) => e.message)
-            });
-        }
-
-        if (error.name === 'MongoServerError' && error.code === 121) {
-            return res.status(400).json({ mensaje: 'El documento no cumple las validaciones de MongoDB.' });
-        }
-
-        console.error('Error al crear usuario:', error);
-        return res.status(500).json({ mensaje: 'Error interno al crear el usuario.' });
+        return responderError(res, error, 'crear el usuario')
     }
-};
+}
 
-
-// READ: listar usuarios.
+// GET /api/usuarios
 const listarUsuarios = async (req, res) => {
     try {
-        const usuarios = await Usuario.find()
-            .sort({ fechaCreacion: -1 })
-            .lean();
-
-        return res.status(200).json({
-            total: usuarios.length,
-            usuarios
-        });
+        const resultado = await listarUsuariosServicio()
+        return res.status(200).json(resultado)
     } catch (error) {
-        console.error('Error al listar usuarios:', error);
-        return res.status(500).json({ mensaje: 'Error interno al consultar los usuarios.' });
+        return responderError(res, error, 'consultar los usuarios')
     }
-};
+}
 
-
-// READ: consultar un usuario por ID.
+// GET /api/usuarios/:id
 const obtenerUsuario = async (req, res) => {
     try {
-        const { id } = req.params;
-
-        if (!idValido(id)) {
-            return res.status(400).json({ mensaje: 'El ID del usuario no tiene un formato válido.' });
-        }
-
-        const usuario = await Usuario.findById(id);
-
-        if (!usuario) {
-            return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
-        }
-
-        return res.status(200).json({ usuario: usuarioPublico(usuario) });
+        const usuario = await obtenerUsuarioServicio(req.params.id)
+        return res.status(200).json({ usuario })
     } catch (error) {
-        console.error('Error al consultar usuario:', error);
-        return res.status(500).json({ mensaje: 'Error interno al consultar el usuario.' });
+        return responderError(res, error, 'consultar el usuario')
     }
-};
+}
 
-
-// UPDATE: actualizar los campos permitidos.
+// PUT /api/usuarios/:id
 const actualizarUsuario = async (req, res) => {
     try {
-        const { id } = req.params;
+        const usuario = await actualizarUsuarioServicio(req.params.id, req.body, req.usuario?.id)
 
-        if (!idValido(id)) {
-            return res.status(400).json({ mensaje: 'El ID del usuario no tiene un formato válido.' });
-        }
+        return res.status(200).json({ mensaje: 'Usuario actualizado correctamente.', usuario })
+    } catch (error) {
+        return responderError(res, error, 'actualizar el usuario')
+    }
+}
 
-        const camposRecibidos = Object.keys(req.body);
-        const camposPermitidos = [...CAMPOS_EDITABLES, 'password'];
-
-        const camposNoPermitidos = camposRecibidos.filter((campo) => !camposPermitidos.includes(campo));
-
-        if (camposNoPermitidos.length > 0) {
-            return res.status(400).json({
-                mensaje: 'La solicitud contiene campos que no se pueden modificar.',
-                campos: camposNoPermitidos
-            });
-        }
-
-        if (camposRecibidos.length === 0) {
-            return res.status(400).json({ mensaje: 'Se debe enviar al menos un campo para actualizar.' });
-        }
-
-        const usuario = await Usuario.findById(id);
-
-        if (!usuario) {
-            return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
-        }
-
-        for (const campo of CAMPOS_EDITABLES) {
-            if (Object.hasOwn(req.body, campo)) {
-                usuario[campo] = req.body[campo];
-            }
-        }
-
-        if (Object.hasOwn(req.body, 'correo')) {
-            if (
-                typeof req.body.correo !== 'string' ||
-                !req.body.correo.trim()
-            ) {
-                return res.status(400).json({ mensaje: 'El correo no puede estar vacío.' });
-            }
-
-            usuario.correo = req.body.correo.trim().toLowerCase();
-        }
-
-        if (Object.hasOwn(req.body, 'password')) {
-            if (
-                typeof req.body.password !== 'string' ||
-                req.body.password.length === 0
-            ) {
-                return res.status(400).json({ mensaje: 'La contraseña no puede estar vacía.' });
-            }
-
-            usuario.passwordHash = await bcrypt.hash(req.body.password, 12);
-        }
-
-        await usuario.save();
+// PATCH /api/usuarios/:id/estado
+const cambiarEstadoUsuario = async (req, res) => {
+    try {
+        const usuario = await cambiarEstadoUsuarioServicio(req.params.id, req.body.estado, req.usuario?.id)
 
         return res.status(200).json({
-            mensaje: 'Usuario actualizado correctamente.',
-            usuario: usuarioPublico(usuario)
-        });
+            mensaje: `Usuario ${usuario.estado === 'activo' ? 'activado' : 'inactivado'} correctamente.`,
+            usuario
+        })
     } catch (error) {
-        if (error.code === 11000) {
-            return res.status(409).json({ mensaje: 'Ya existe otro usuario registrado con ese correo.' });
-        }
-
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({
-                mensaje: 'Los datos del usuario no son válidos.',
-                errores: Object.values(error.errors).map((e) => e.message)
-            });
-        }
-
-        if (error.name === 'MongoServerError' && error.code === 121) {
-            return res.status(400).json({ mensaje: 'El documento no cumple las validaciones de MongoDB.' });
-        }
-
-        console.error('Error al actualizar usuario:', error);
-        return res.status(500).json({ mensaje: 'Error interno al actualizar el usuario.' });
+        return responderError(res, error, 'cambiar el estado del usuario')
     }
-};
+}
 
-// DELETE: eliminar un usuario.
+// DELETE /api/usuarios/:id
 const eliminarUsuario = async (req, res) => {
     try {
-        const { id } = req.params;
+        const resultado = await eliminarUsuarioServicio(req.params.id, req.usuario?.id)
 
-        if (!idValido(id)) {
-            return res.status(400).json({ mensaje: 'El ID del usuario no tiene un formato válido.' });
-        }
-
-        const usuario = await Usuario.findByIdAndDelete(id);
-
-        if (!usuario) {
-            return res.status(404).json({
-                mensaje: 'Usuario no encontrado.'
-            });
-        }
-
-        return res.status(200).json({
-            mensaje: 'Usuario eliminado correctamente.',
-            id: usuario._id
-        });
+        return res.status(200).json({ mensaje: 'Usuario eliminado correctamente.', ...resultado })
     } catch (error) {
-        console.error('Error al eliminar usuario:', error);
-        return res.status(500).json({ mensaje: 'Error interno al eliminar el usuario.' });
+        return responderError(res, error, 'eliminar el usuario')
     }
-};
+}
 
 export {
     crearUsuario,
     listarUsuarios,
     obtenerUsuario,
     actualizarUsuario,
+    cambiarEstadoUsuario,
     eliminarUsuario
 }
