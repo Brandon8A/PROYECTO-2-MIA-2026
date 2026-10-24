@@ -70,7 +70,7 @@
     <div class="buscador">
       <span class="material-symbols-outlined">search</span>
       <input type="search" placeholder="Buscar carpetas y archivos..." aria-label="Buscar carpetas y archivos"
-        [value]="busqueda" (input)="busqueda = $any($event.target).value" />
+        [value]="busqueda" (input)="alCambiarBusqueda($any($event.target).value)" />
       <kbd>Buscar</kbd>
     </div>
 

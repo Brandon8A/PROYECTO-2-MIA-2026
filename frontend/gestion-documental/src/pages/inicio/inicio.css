@@ -622,6 +622,9 @@ input:focus-visible {
 /*TARJETAS DE ELEMENTOS*/
 
 .tarjeta-elemento {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
   display: flex;
   align-items: center;
   gap: 13px;
@@ -639,6 +642,10 @@ input:focus-visible {
     transform 0.18s ease,
     box-shadow 0.18s ease,
     border-color 0.18s ease;
+}
+
+.tarjeta-elemento:has(.menu-opciones) {
+  z-index: 10;
 }
 
 .tarjeta-elemento:hover {
@@ -1082,6 +1089,7 @@ input:focus-visible {
   position: relative;
   align-self: flex-start;
   flex-shrink: 0;
+  z-index: 11;
 }
 
 .btn-opciones {
@@ -1118,7 +1126,7 @@ input:focus-visible {
   position: absolute;
   top: 38px;
   right: 0;
-  z-index: 120;
+  z-index: 100;
   width: 235px;
   max-width: calc(100vw - 32px);
   padding: 7px;
@@ -1383,4 +1391,3 @@ input:focus-visible {
   font-size: 11px;
   font-weight: 400;
 }
-

@@ -2,7 +2,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router'
-import { forkJoin, finalize } from 'rxjs';
+import { forkJoin, finalize, Observable, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth';
 import { CarpetasService } from '../../services/carpetas';
@@ -35,6 +36,8 @@ export class Inicio implements OnInit {
   permisoCompartir: TipoPermisoCompartido = 'lectura';
   compartiendo = false;
 
+  private elementosBusquedaGlobal: Elemento[] | null = null;
+  private busquedaGlobalCargando = false;
   busqueda = '';
   menuNuevoAbierto = false;
   menuElementoId: string | null = null;
@@ -251,25 +254,46 @@ export class Inicio implements OnInit {
     return ruta;
   }
 
+
   get elementosVisibles(): Elemento[] {
-    const termino = this.busqueda.trim().toLocaleLowerCase();
+    const normalizar = (texto: string): string =>
+      texto
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase()
+        .trim();
 
-    return this.elementos.filter(elemento => {
-      if (this.vistaActual === 'papelera') {
-        return elemento.enPapelera === true;
-      }
+    const termino = normalizar(this.busqueda)
+    const elementosFuente = this.vistaActual === 'mis-carpetas' && termino
+        ? this.elementosBusquedaGlobal ?? this.elementos
+        : this.elementos;
+    return elementosFuente
+      .filter(elemento => {
+        if (this.vistaActual === 'papelera') {
+          return elemento.enPapelera === true
+        }
 
-      if (this.vistaActual === 'compartidos') {
-        return true;
-      }
+        if (this.vistaActual === 'compartidos') {
+          return true
+        }
+        return (elemento.carpetaPadreId === this.carpetaActualId && !elemento.enPapelera)
+      }).filter(elemento => {
+        if (!termino) {
+          return true
+        }
 
-      return (elemento.carpetaPadreId === this.carpetaActualId && !elemento.enPapelera)
-    }).filter(elemento => this.nombreCompleto(elemento).toLocaleLowerCase().includes(termino)).sort((a, b) => {
-      if (a.tipo !== b.tipo) {
-        return a.tipo === 'carpeta' ? -1 : 1
-      }
-      return a.nombre.localeCompare(b.nombre)
-    })
+        const campos = [
+          this.nombreCompleto(elemento),
+          elemento.compartidoPor ?? '',
+          elemento.correoCompartidor ?? ''
+        ]
+        return campos.some(campo => normalizar(campo).includes(termino))
+      }).sort((a, b) => {
+        if (a.tipo !== b.tipo) {
+          return a.tipo === 'carpeta' ? -1 : 1
+        }
+        return a.nombre.localeCompare(b.nombre)
+      })
   }
 
   get cantidadCarpetas(): number {
@@ -794,6 +818,77 @@ export class Inicio implements OnInit {
         alert(error.error?.mensaje ?? 'No se pudo eliminar definitivamente el elemento.')
       }
     })
+  }
+
+  alCambiarBusqueda(valor: string): void {
+    this.busqueda = valor
+
+    if (!valor.trim() || this.vistaActual !== 'mis-carpetas' || this.elementosBusquedaGlobal !== null || this.busquedaGlobalCargando) {
+      return
+    }
+
+    this.busquedaGlobalCargando = true
+    this.cargando = true
+    this.errorCarga = ''
+
+    this.obtenerElementosRecursivos(null).pipe(
+      finalize(() => {
+        this.busquedaGlobalCargando = false
+        this.cargando = false
+        this.cdr.detectChanges()
+      })
+    ).subscribe({
+      next: elementos => {
+        this.elementosBusquedaGlobal = elementos
+      },
+      error: error => {
+        console.error('Error en la búsqueda global:', error)
+        this.errorCarga = error.error?.mensaje ?? 'No se pudieron buscar los documentos.'
+        this.elementosBusquedaGlobal = null
+      }
+    })
+  }
+
+  private obtenerElementosRecursivos(carpetaPadreId: string | null): Observable<Elemento[]> {
+    return forkJoin({
+      carpetas: this.carpetasService.listar(carpetaPadreId),
+      archivos: this.archivosService.listar(carpetaPadreId)
+    }).pipe(
+      switchMap(({ carpetas, archivos }) => {
+        const carpetasActuales: Elemento[] = carpetas.map(carpeta => ({
+          id: carpeta._id,
+          nombre: carpeta.nombre,
+          tipo: 'carpeta',
+          carpetaPadreId: carpeta.carpetaPadreId,
+          fechaModificacion: new Date(carpeta.fechaModificacion),
+          enPapelera: false
+        }))
+
+        const archivosActuales: Elemento[] = archivos.map(archivo => ({
+          id: archivo._id,
+          nombre: archivo.nombre,
+          tipo: 'archivo',
+          extension: archivo.extension.replace(/^\./, '') as ExtensionArchivo,
+          carpetaPadreId: archivo.carpetaId,
+          fechaModificacion: new Date(archivo.fechaModificacion),
+          enPapelera: false
+        }))
+
+        if (carpetas.length === 0) {
+          return of([...carpetasActuales, ...archivosActuales])
+        }
+
+        const consultasSubcarpetas = carpetas.map(carpeta => this.obtenerElementosRecursivos(carpeta._id))
+
+        return forkJoin(consultasSubcarpetas).pipe(
+          map(resultadosSubcarpetas => [
+            ...carpetasActuales,
+            ...archivosActuales,
+            ...resultadosSubcarpetas.flat()
+          ])
+        )
+      })
+    )
   }
 
   private existeElemento(
